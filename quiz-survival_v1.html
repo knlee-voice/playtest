@@ -1,0 +1,3143 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>서바이벌 OX — 인게임 프로토타입</title>
+<style>
+  :root {
+    --bg: #0a0e14;
+    --panel: #131922;
+    --panel-2: #1a2230;
+    --border: #2a3548;
+    --text: #e6edf3;
+    --text-dim: #8b949e;
+    --accent: #ffb454;
+    --o-color: #4ec9b0;
+    --o-glow: rgba(78, 201, 176, 0.35);
+    --x-color: #f47174;
+    --x-glow: rgba(244, 113, 116, 0.35);
+    --middle: #4a5468;
+    --p-scholar: #7aa2f7;
+    --p-normal: #9ece6a;
+    --p-watcher: #bb9af7;
+    --p-gambler: #f7768e;
+    --p-novice: #e0af68;
+    --p-human:   #ffd166;
+    --mono: 'SF Mono', 'JetBrains Mono', Consolas, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', sans-serif;
+    overflow: hidden;
+  }
+  .app {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    height: 100vh;
+  }
+  /* ==== Phone frame (mobile portrait) ==== */
+  .phone-area {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: radial-gradient(circle at 50% 30%, #1a2230 0%, #0a0e14 70%);
+  }
+  .phone {
+    width: 380px;
+    height: 760px;
+    background: linear-gradient(180deg, #0f141c 0%, #0a0e14 100%);
+    border-radius: 32px;
+    border: 2px solid #1f2937;
+    box-shadow:
+      0 0 0 6px #0a0e14,
+      0 0 60px rgba(0,0,0,0.6),
+      inset 0 0 40px rgba(0,0,0,0.4);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  /* Notch */
+  .notch {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 120px;
+    height: 22px;
+    background: #0a0e14;
+    border-radius: 0 0 14px 14px;
+    z-index: 100;
+  }
+  /* ==== HUD ==== */
+  .hud {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 32px 16px 10px 16px;
+    font-size: 14px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+  }
+  .hud-round { color: var(--accent); font-weight: 600; font-size: 16px; }
+  .hud-timer {
+    color: var(--text);
+    font-weight: 600;
+    font-size: 18px;
+    font-family: var(--mono);
+  }
+  .hud-timer.warning { color: var(--x-color); animation: pulse 0.5s infinite; }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  /* Timer bar */
+  .timer-bar {
+    height: 4px;
+    background: var(--panel-2);
+    margin: 0 16px 8px 16px;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .timer-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--o-color), var(--accent), var(--x-color));
+    width: 100%;
+    transition: width 0.1s linear;
+  }
+  /* ==== Question ==== */
+  .question-box {
+    margin: 8px 16px 12px 16px;
+    padding: 14px 14px;
+    background: linear-gradient(135deg, var(--panel-2) 0%, var(--panel) 100%);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    min-height: 78px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .question-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .question-category-badge {
+    font-size: 14px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-family: var(--mono);
+    font-weight: 700;
+    padding: 2px 9px;
+    border: 1.5px solid var(--accent);
+    border-radius: 6px;
+    background: rgba(255, 209, 102, 0.08);
+  }
+  .question-diff {
+    font-size: 14px;
+    color: var(--text-dim);
+    letter-spacing: 0.06em;
+    font-family: var(--mono);
+  }
+  .question-text {
+    font-size: 18px;
+    line-height: 1.45;
+    font-weight: 500;
+    padding-right: 54px;
+  }
+  .question-reveal {
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .question-reveal.show { opacity: 1; }
+  .question-reveal.o { background: var(--o-color); color: #0a0e14; }
+  .question-reveal.x { background: var(--x-color); color: #0a0e14; }
+
+  /* ==== Arena (O / X / Middle zones) ==== */
+  .arena {
+    flex: 1;
+    margin: 0 12px 12px 12px;
+    border-radius: 14px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+  .zones {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    position: relative;
+  }
+  .zone {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    padding-bottom: 12px;
+    transition: background 0.3s, opacity 0.5s;
+  }
+  .zone.o {
+    background: linear-gradient(180deg, rgba(78, 201, 176, 0.08) 0%, rgba(78, 201, 176, 0.18) 100%);
+    border-right: 1px dashed var(--border);
+  }
+  .zone.x {
+    background: linear-gradient(180deg, rgba(244, 113, 116, 0.08) 0%, rgba(244, 113, 116, 0.18) 100%);
+  }
+  .zone.correct { background: linear-gradient(180deg, rgba(78, 201, 176, 0.2) 0%, rgba(78, 201, 176, 0.4) 100%); }
+  .zone.wrong { 
+    background: linear-gradient(180deg, rgba(244, 113, 116, 0.2) 0%, rgba(244, 113, 116, 0.4) 100%);
+  }
+  .zone.wrong.shattered {
+    animation: shatter 0.6s forwards;
+  }
+  @keyframes shatter {
+    0% { transform: translateY(0); opacity: 1; }
+    40% { transform: translateY(0) rotate(-2deg); opacity: 0.8; }
+    100% { transform: translateY(60px) rotate(-4deg); opacity: 0; }
+  }
+  .zone-label {
+    position: absolute;
+    top: 12px;
+    font-size: 64px;
+    font-weight: 900;
+    opacity: 0.95;
+    pointer-events: none;
+    font-family: var(--mono);
+    -webkit-text-stroke: 2.5px rgba(255,255,255,0.9);
+    paint-order: stroke fill;
+    letter-spacing: -2px;
+  }
+  .zone.o .zone-label {
+    color: var(--o-color);
+    text-shadow: 0 0 18px rgba(78, 201, 176, 0.7), 0 2px 4px rgba(0,0,0,0.5);
+  }
+  .zone.x .zone-label {
+    color: var(--x-color);
+    text-shadow: 0 0 18px rgba(244, 113, 116, 0.7), 0 2px 4px rgba(0,0,0,0.5);
+  }
+  .zone-count {
+    position: absolute;
+    bottom: 6px;
+    font-size: 13px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    background: rgba(0,0,0,0.4);
+    padding: 2px 8px;
+    border-radius: 10px;
+  }
+  /* Middle strip indicator (no separate zone, characters can be in middle band) */
+  .middle-strip {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 60px;
+    transform: translateX(-50%);
+    background: linear-gradient(180deg, rgba(74, 84, 104, 0.15) 0%, rgba(74, 84, 104, 0.05) 100%);
+    pointer-events: none;
+  }
+
+  /* ==== Characters ==== */
+  .character {
+    position: absolute;
+    width: 30px;
+    height: 38px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transition: left 0.5s cubic-bezier(0.4, 0.0, 0.2, 1),
+                top 0.5s cubic-bezier(0.4, 0.0, 0.2, 1),
+                opacity 0.4s;
+    pointer-events: none;
+    z-index: 10;
+  }
+  .char-body {
+    width: 22px;
+    height: 22px;
+    border-radius: 50% 50% 45% 45%;
+    background: var(--p-normal);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.4), inset 0 -3px 4px rgba(0,0,0,0.2);
+    position: relative;
+  }
+  .char-body::before {
+    /* head */
+    content: '';
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: inherit;
+    top: -10px;
+    left: 4px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  }
+  .char-label {
+    font-size: 12px;
+    color: var(--text);
+    background: rgba(0,0,0,0.7);
+    padding: 1px 4px;
+    border-radius: 4px;
+    margin-top: 2px;
+    white-space: nowrap;
+    font-family: var(--mono);
+  }
+  .char-label .bot-icon { color: var(--accent); margin-right: 1px; }
+  .char-label .human-icon { color: var(--p-human); margin-right: 1px; }
+
+  /* Persona body colors */
+  .character[data-persona="scholar"] .char-body { background: var(--p-scholar); }
+  .character[data-persona="normal"]  .char-body { background: var(--p-normal); }
+  .character[data-persona="watcher"] .char-body { background: var(--p-watcher); }
+  .character[data-persona="gambler"] .char-body { background: var(--p-gambler); }
+  .character[data-persona="novice"]  .char-body { background: var(--p-novice); }
+  .character[data-persona="human"]   .char-body { background: var(--p-human); }
+
+  .character.eliminated {
+    animation: fall 0.8s forwards;
+  }
+  @keyframes fall {
+    0% { transform: translateY(0) rotate(0); opacity: 1; }
+    100% { transform: translateY(120px) rotate(180deg); opacity: 0; }
+  }
+  .character.winner {
+    animation: bounce 0.5s infinite;
+  }
+  @keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+  }
+
+  /* Crown for the previous game's winner — worn into the next round */
+  .crown-icon {
+    position: absolute;
+    top: -24px;
+    left: 7px;
+    font-size: 16px;
+    line-height: 1;
+    z-index: 11;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));
+    animation: crownSway 2.2s ease-in-out infinite;
+    pointer-events: none;
+  }
+  @keyframes crownSway {
+    0%, 100% { transform: rotate(-6deg); }
+    50% { transform: rotate(6deg); }
+  }
+  .character.last-winner-char .char-body {
+    box-shadow: 0 0 0 2px var(--accent), 0 0 10px rgba(255, 180, 84, 0.6),
+                0 2px 4px rgba(0,0,0,0.4), inset 0 -3px 4px rgba(0,0,0,0.2);
+  }
+  .character.last-winner-char .char-label {
+    background: rgba(255, 180, 84, 0.25);
+    border: 1px solid rgba(255, 180, 84, 0.5);
+  }
+
+  /* Thinking indicator */
+  .thinking {
+    position: absolute;
+    top: -22px;
+    font-size: 10px;
+    animation: think 1s infinite;
+  }
+  @keyframes think {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+  }
+
+  /* Human player highlight */
+  .character[data-persona="human"] .char-body {
+    box-shadow: 0 0 0 2px var(--p-human), 0 0 12px var(--p-human), 0 2px 4px rgba(0,0,0,0.4), inset 0 -3px 4px rgba(0,0,0,0.2);
+  }
+  .character[data-persona="human"] .char-label {
+    background: var(--p-human);
+    color: #0a0e14;
+    font-weight: 700;
+  }
+
+  /* Tap zones (interactive O/X selection) */
+  .zone {
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .zone.selected-o::after, .zone.selected-x::after {
+    content: '';
+    position: absolute;
+    inset: 4px;
+    border-radius: 10px;
+    border: 2px solid var(--p-human);
+    pointer-events: none;
+    animation: selectedPulse 0.8s infinite;
+  }
+  @keyframes selectedPulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+  .zone:active { filter: brightness(1.2); }
+
+  /* Input prompt */
+  .input-prompt {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(255, 209, 102, 0.95);
+    color: #0a0e14;
+    padding: 8px 14px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    pointer-events: none;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    z-index: 50;
+    animation: promptBlink 1.5s infinite;
+  }
+  @keyframes promptBlink {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); }
+    50% { transform: translate(-50%, -50%) scale(1.05); }
+  }
+  .input-prompt.hidden { display: none; }
+  .input-prompt small {
+    display: block;
+    font-size: 11px;
+    font-weight: 500;
+    margin-top: 2px;
+    opacity: 0.7;
+  }
+
+  /* ==== Footer ==== */
+  .game-footer {
+    padding: 8px 16px 16px 16px;
+    display: flex;
+    justify-content: space-around;
+    align-items: flex-start;
+    font-size: 11px;
+    color: var(--text-dim);
+    border-top: 1px solid var(--border);
+    gap: 4px;
+  }
+  .footer-stat { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .footer-stat-val { color: var(--text); font-family: var(--mono); font-size: 14px; font-weight: 600; }
+  .fw-persona { font-size: 10px; color: var(--text-dim); font-family: var(--mono); }
+  .speed-select {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 13px;
+    font-family: var(--mono);
+    font-weight: 600;
+    border-radius: 6px;
+    padding: 2px 4px;
+    cursor: pointer;
+    outline: none;
+    margin-top: 1px;
+  }
+  .speed-select:focus { border-color: var(--accent); }
+
+  /* In-phone game controls */
+  .game-controls {
+    display: flex;
+    gap: 5px;
+    padding: 6px 16px 12px 16px;
+  }
+  .game-ctrl-row {
+    display: contents;
+  }
+  .game-ctrl-primary .game-btn,
+  .game-ctrl-secondary .game-btn {
+    padding: 10px 4px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .game-btn {
+    flex: 1;
+    border-radius: 9px;
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    color: var(--text);
+    font-family: inherit;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: filter 0.1s, opacity 0.2s;
+    white-space: nowrap;
+    padding: 10px 4px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .game-btn:active { filter: brightness(1.2); }
+  .game-btn.start {
+    background: var(--accent);
+    color: #1a1a1a;
+    border-color: var(--accent);
+    flex: 1.4;
+  }
+  .game-btn.auto {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .game-btn.auto.active {
+    background: var(--accent);
+    color: #1a1a1a;
+    border-color: var(--accent);
+    box-shadow: 0 0 8px rgba(255, 180, 84, 0.5);
+  }
+  .game-btn.pause { flex: 1; }
+  .game-btn.reset  { flex: 1; }
+  .game-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  /* Nickname input */
+  .nickname-row {
+    display: flex;
+    gap: 6px;
+    padding: 0 16px 8px 16px;
+    align-items: center;
+  }
+  .nickname-row label {
+    font-size: 12px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    white-space: nowrap;
+  }
+  .nickname-input {
+    flex: 0.8;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--p-human);
+    font-weight: 700;
+    font-size: 13px;
+    font-family: inherit;
+    padding: 6px 8px;
+    border-radius: 8px;
+    outline: none;
+    min-width: 0;
+  }
+  .nickname-input:focus {
+    border-color: var(--p-human);
+  }
+  .nickname-input:disabled {
+    opacity: 0.5;
+  }
+
+  /* 문제 은행 선택 */
+  .qbank-select-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+  .qbank-label {
+    font-size: 10px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    white-space: nowrap;
+  }
+  .qbank-select {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 11px;
+    font-family: var(--mono);
+    font-weight: 600;
+    border-radius: 6px;
+    padding: 3px 5px;
+    cursor: pointer;
+    outline: none;
+    max-width: 110px;
+  }
+  .qbank-select:focus { border-color: var(--accent); }
+  .qbank-select:disabled { opacity: 0.4; cursor: not-allowed; }
+  .last-winner {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+  .last-winner-label {
+    font-size: 12px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    white-space: nowrap;
+  }
+  .last-winner-name {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent);
+    white-space: nowrap;
+    max-width: 90px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .last-winner.is-human .last-winner-name {
+    color: var(--p-human);
+  }
+  .last-winner-persona {
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    white-space: nowrap;
+  }
+  .last-round {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+  .last-round-label {
+    font-size: 12px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    white-space: nowrap;
+  }
+  .last-round-value {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text);
+    white-space: nowrap;
+  }
+
+  /* Victory overlay */
+  .victory-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 200;
+    pointer-events: auto;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border-radius: 30px;
+  }
+  .victory-overlay.hidden { display: none; }
+  #confetti-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .victory-message {
+    position: relative;
+    z-index: 2;
+    text-align: center;
+    background: rgba(10, 14, 20, 0.55);
+    backdrop-filter: blur(2px);
+    padding: 28px 36px;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 209, 102, 0.4);
+    box-shadow: 0 0 40px rgba(255, 209, 102, 0.25);
+    animation: victoryPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes victoryPop {
+    0% { transform: scale(0.6); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .victory-emoji {
+    font-size: 48px;
+    margin-bottom: 4px;
+    animation: victoryBounce 0.8s ease-in-out infinite;
+  }
+  @keyframes victoryBounce {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    50% { transform: translateY(-8px) rotate(-6deg); }
+  }
+  .victory-text {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--p-human);
+    letter-spacing: 0.02em;
+  }
+  .victory-sub {
+    font-size: 14px;
+    color: var(--text);
+    margin-top: 2px;
+    font-family: var(--mono);
+  }
+
+  /* ==== Control Panel (right side) ==== */
+  .controls-panel {
+    background: var(--panel);
+    border-left: 1px solid var(--border);
+    padding: 20px 18px;
+    overflow-y: auto;
+  }
+  .controls-panel h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .controls-panel h1 {
+    font-size: 15px;
+    margin-bottom: 4px;
+  }
+  .controls-panel .sub {
+    font-size: 10px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    margin-bottom: 18px;
+  }
+  .btn-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+  button {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 8px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 11px;
+    transition: all 0.15s;
+  }
+  button:hover { background: var(--border); }
+  button.primary {
+    background: var(--accent);
+    color: #1a1a1a;
+    border-color: var(--accent);
+    font-weight: 600;
+    grid-column: span 2;
+    padding: 10px;
+  }
+  button.primary:hover { filter: brightness(1.1); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .legend {
+    display: grid;
+    gap: 6px;
+    font-size: 11px;
+    margin-bottom: 16px;
+  }
+  .legend-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px;
+    background: var(--panel-2);
+    border-radius: 4px;
+  }
+  .legend-swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+  }
+  .legend-row .count {
+    margin-left: auto;
+    font-family: var(--mono);
+    color: var(--text-dim);
+  }
+
+  .event-log {
+    font-family: var(--mono);
+    font-size: 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px;
+    max-height: 308px;
+    overflow-y: auto;
+    line-height: 1.6;
+    scroll-behavior: smooth;
+  }
+  .event-log .line { color: var(--text-dim); margin-bottom: 2px; }
+  .event-log .line .acc { color: var(--accent); }
+  .event-log .line .o { color: var(--o-color); }
+  .event-log .line .x { color: var(--x-color); }
+  .event-log .line .elim { color: var(--x-color); }
+
+  .speed-control {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
+  }
+  .speed-btn {
+    flex: 1;
+    padding: 6px;
+    font-size: 10px;
+  }
+  .speed-btn.active {
+    background: var(--accent);
+    color: #1a1a1a;
+    border-color: var(--accent);
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ============ PHONE (GAME VIEW) ============ -->
+<div class="phone-area">
+  <div class="phone">
+    <div class="notch"></div>
+
+    <!-- Victory overlay (confetti + message) -->
+    <div class="victory-overlay hidden" id="victory-overlay">
+      <canvas id="confetti-canvas"></canvas>
+      <div class="victory-message" id="victory-message">
+        <div class="victory-emoji">🏆</div>
+        <div class="victory-text">축하합니다!</div>
+        <div class="victory-sub">우승했습니다</div>
+      </div>
+    </div>
+
+    <!-- HUD -->
+    <div class="hud">
+      <div class="hud-round" id="hud-round">Round 1</div>
+      <div class="hud-timer" id="hud-timer">10.0s</div>
+      <div id="hud-alive">15/15</div>
+    </div>
+    <div class="timer-bar"><div class="timer-fill" id="timer-fill"></div></div>
+
+    <!-- Question -->
+    <div class="question-box">
+      <div class="question-meta">
+        <span class="question-category-badge" id="q-category-badge">상식</span>
+        <span class="question-diff" id="q-diff">난이도 중</span>
+      </div>
+      <div class="question-text" id="q-text">대기 중...</div>
+      <div class="question-reveal" id="q-reveal"></div>
+    </div>
+
+    <!-- Arena -->
+    <div class="arena" id="arena">
+      <div class="zones" id="zones">
+        <div class="zone o" id="zone-o">
+          <div class="zone-label">O</div>
+          <div class="zone-count" id="count-o">0명</div>
+        </div>
+        <div class="zone x" id="zone-x">
+          <div class="zone-label">X</div>
+          <div class="zone-count" id="count-x">0명</div>
+        </div>
+        <div class="middle-strip"></div>
+        <div class="input-prompt hidden" id="input-prompt">
+          좌/우 영역을 탭하세요
+          <small>키보드: ← O / → X</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="game-footer">
+      <div class="footer-stat">
+        <div id="me-label">당신</div>
+        <div class="footer-stat-val" id="me-status">생존</div>
+      </div>
+      <div class="footer-stat">
+        <div>최고 라운드</div>
+        <div class="footer-stat-val" id="best-round">—</div>
+      </div>
+      <div class="footer-stat footer-stat-winner" id="footer-last-winner">
+        <div>직전 우승</div>
+        <div class="footer-stat-val" id="fw-name">—</div>
+        <div class="fw-persona" id="fw-persona"></div>
+      </div>
+      <div class="footer-stat">
+        <div>배속</div>
+        <select class="speed-select" id="speed-select">
+          <option value="0.5">0.5x</option>
+          <option value="1" selected>1.0x</option>
+          <option value="1.5">1.5x</option>
+          <option value="2">2.0x</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Nickname input + 문제 은행 선택 -->
+    <div class="nickname-row">
+      <label>닉네임:</label>
+      <input type="text" class="nickname-input" id="nickname-input" value="" maxlength="10" placeholder="HUMAN(당신)">
+      <div class="qbank-select-wrap">
+        <label class="qbank-label">문제은행</label>
+        <select class="qbank-select" id="qbank-select">
+          <option value="mixed" selected>혼합300(상중하)</option>
+          <option value="ai">AI300(상중)</option>
+          <option value="ai_easy">AI300(중하)</option>
+          <option value="game">게임300(상중하)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- In-phone game controls: 시작 · 자동 · 일시정지 · 초기화 -->
+    <div class="game-controls">
+      <button class="game-btn start" id="game-btn-start">▶ 시작</button>
+      <button class="game-btn auto"  id="auto-toggle">🤖 자동</button>
+      <button class="game-btn pause" id="game-btn-pause" disabled>⏸ 일시정지</button>
+      <button class="game-btn reset" id="game-btn-reset">🔁 초기화</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ CONTROL PANEL ============ -->
+<aside class="controls-panel">
+  <h1>인게임 프로토타입</h1>
+  <div class="sub">v0.1 / 15인 룸 / 페르소나 시각화</div>
+
+  <h2>컨트롤</h2>
+  <button class="primary" id="btn-start">▶ 게임 시작</button>
+  <div class="btn-row">
+    <button id="btn-pause">⏸ 일시정지</button>
+    <button id="btn-reset">🔁 리셋</button>
+  </div>
+  <div class="speed-control" style="display:none"></div>
+
+  <h2>페르소나 분포</h2>
+  <div class="legend" id="legend"></div>
+
+  <h2>실시간 로그</h2>
+  <div class="event-log" id="event-log">
+    <div class="line">시뮬레이션 대기 중...</div>
+  </div>
+</aside>
+</div>
+
+<script>
+// =========================================================
+// PERSONA PARAMS (from v0.1)
+// =========================================================
+const PERSONA_PARAMS = {
+  scholar: { acc: 0.85, conf: 0,     delay: 2.0, mid: 0.05, imit: 0,    flip: 0    },
+  normal:  { acc: 0.60, conf: 0,     delay: 4.5, mid: 0.15, imit: 0.10, flip: 0    },
+  watcher: { acc: 0.55, conf: -0.10, delay: 6.5, mid: 0.10, imit: 0.60, flip: 0.30 },
+  gambler: { acc: 0.45, conf: 0.30,  delay: 1.5, mid: 0.02, imit: 0,    flip: 0.20 },
+  novice:  { acc: 0.35, conf: -0.30, delay: 7.0, mid: 0.30, imit: 0.20, flip: 0    },
+  human:   { acc: 0.65, conf: 0,     delay: 4.0, mid: 0.10, imit: 0,    flip: 0    }
+};
+const PERSONA_LABELS = {
+  scholar: '박학다식', normal: '평범', watcher: '눈치파',
+  gambler: '도박러', novice: '초보', human: '당신'
+};
+const PERSONA_COLORS = {
+  scholar: '#7aa2f7', normal: '#9ece6a', watcher: '#bb9af7',
+  gambler: '#f7768e', novice: '#e0af68', human: '#ffd166'
+};
+
+// Roster: 인간 1 + 박학 2 + 평범 5 + 눈치 3 + 도박 2 + 초보 3 = 16명
+const ROSTER = ['human', 'scholar', 'scholar', 'normal', 'normal', 'normal', 'normal', 'normal', 'watcher', 'watcher', 'watcher', 'gambler', 'gambler', 'novice', 'novice', 'novice'];
+
+// =========================================================
+// QUESTION POOL (sample, 100문항)
+// 카테고리 비중: 게임 25 / AI 25 / 상식·역사·과학·스포츠·영어·속담 각 8~9
+// 게임 카테고리 내 "게임 히스토리" 문항 다수 포함
+// =========================================================
+const QUESTIONS_MIXED = [
+  // ───────── 게임 (25) — 히스토리 비중 높음 ─────────
+  { cat: '게임', diff: 'mid',  text: '스타크래프트1은 블리자드가 만들었다.', answer: 'O' },
+  { cat: '게임', diff: 'hard', text: '리그 오브 레전드는 Valve가 만들었다.', answer: 'X' },
+  { cat: '게임', diff: 'hard', text: '세계 최초의 상업용 비디오게임은 "퐁(Pong)"이다.', answer: 'X' },
+  { cat: '게임', diff: 'mid',  text: '"스페이스 인베이더"는 1978년 일본 타이토에서 출시했다.', answer: 'O' },
+  { cat: '게임', diff: 'hard', text: '닌텐도는 원래 화투(花札) 제조 회사로 시작했다.', answer: 'O' },
+  { cat: '게임', diff: 'mid',  text: '"슈퍼 마리오 브라더스"는 1985년에 출시되었다.', answer: 'O' },
+  { cat: '게임', diff: 'hard', text: '1983년 아타리 쇼크는 비디오게임 산업 붕괴를 불러온 사건이다.', answer: 'O' },
+  { cat: '게임', diff: 'mid',  text: '"디아블로"는 블리자드 노스에서 처음 개발했다.', answer: 'O' },
+  { cat: '게임', diff: 'easy', text: '"테트리스"는 러시아 출신 개발자가 만들었다.', answer: 'O' },
+  { cat: '게임', diff: 'mid',  text: '"리니지"는 엔씨소프트가 1998년에 출시했다.', answer: 'O' },
+  { cat: '게임', diff: 'hard', text: '"울티마 온라인"은 세계 최초의 MMORPG이다.', answer: 'X' },
+  { cat: '게임', diff: 'mid',  text: '"바람의나라"는 한국 최초의 그래픽 MMORPG로 평가받는다.', answer: 'O' },
+  { cat: '게임', diff: 'hard', text: '"퀘이크"는 id Software가 개발한 1인칭 슈팅 게임이다.', answer: 'O' },
+  { cat: '게임', diff: 'mid',  text: '"포켓몬스터"의 최초 버전은 1996년 게임보이로 발매됐다.', answer: 'O' },
+  { cat: '게임', diff: 'hard', text: 'E.T. 게임의 흥행 실패는 닌텐도의 몰락을 가져왔다.', answer: 'X' },
+  { cat: '게임', diff: 'mid',  text: '"GTA(그랜드 테프트 오토)"는 락스타 게임즈가 개발했다.', answer: 'O' },
+  { cat: '게임', diff: 'mid',  text: '"오버워치"는 밸브의 첫 FPS 신규 IP이다.', answer: 'X' },
+  { cat: '게임', diff: 'hard', text: '"동물의 숲" 시리즈는 닌텐도 64로 처음 출시되었다.', answer: 'O' },
+  { cat: '게임', diff: 'easy', text: '"마인크래프트"는 모장(Mojang) 스튜디오가 개발했다.', answer: 'O' },
+  { cat: '게임', diff: 'hard', text: '세가는 1990년대 드림캐스트로 콘솔 시장에서 철수했다.', answer: 'O' },
+  { cat: '게임', diff: 'mid',  text: '"검은사막"은 넥슨이 개발한 한국 게임이다.', answer: 'X' },
+  { cat: '게임', diff: 'hard', text: '"파이널 판타지 7"은 원래 닌텐도 플랫폼용으로 개발되다 소니로 변경됐다.', answer: 'O' },
+  { cat: '게임', diff: 'mid',  text: '"오버워치 2"는 기존 오버워치를 유료 확장팩 형태로 출시했다.', answer: 'X' },
+  { cat: '게임', diff: 'hard', text: '"위쳐 3"는 폴란드의 CD Projekt RED가 개발했다.', answer: 'O' },
+  { cat: '게임', diff: 'mid',  text: 'e스포츠 종목으로서 LoL 월드 챔피언십은 2011년 처음 개최됐다.', answer: 'O' },
+
+  // ───────── AI (25) — LLM/빅테크/알고리즘/AI역사/인물 ─────────
+  { cat: 'AI',   diff: 'mid',  text: 'GPT-4는 OpenAI가 만들었다.', answer: 'O' },
+  { cat: 'AI',   diff: 'hard', text: 'Llama 3는 폐쇄형(클로즈드) 모델이다.', answer: 'X' },
+  { cat: 'AI',   diff: 'mid',  text: 'Anthropic의 CEO는 Dario Amodei이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'hard', text: '다트머스 회의는 1956년에 열렸으며 "인공지능"이라는 용어가 처음 제안됐다.', answer: 'O' },
+  { cat: 'AI',   diff: 'mid',  text: '트랜스포머(Transformer) 아키텍처는 구글이 2017년 논문으로 처음 발표했다.', answer: 'O' },
+  { cat: 'AI',   diff: 'easy', text: 'ChatGPT는 OpenAI가 출시했다.', answer: 'O' },
+  { cat: 'AI',   diff: 'mid',  text: 'Yann LeCun은 합성곱 신경망(CNN) 연구의 선구자이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'hard', text: 'AlphaGo는 IBM에서 개발했다.', answer: 'X' },
+  { cat: 'AI',   diff: 'mid',  text: '퀵소트의 평균 시간복잡도는 O(n log n)이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'hard', text: '제프리 힌튼은 "딥러닝의 대부"로 불린다.', answer: 'O' },
+  { cat: 'AI',   diff: 'mid',  text: 'Stable Diffusion은 텍스트를 이미지로 생성하는 모델이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'hard', text: 'AI 겨울(AI Winter)은 1980년대에 AI 연구 투자가 급증한 시기를 뜻한다.', answer: 'X' },
+  { cat: 'AI',   diff: 'mid',  text: 'Meta의 AI 모델 시리즈 이름은 "Falcon"이다.', answer: 'X' },
+  { cat: 'AI',   diff: 'hard', text: '강화학습(RL)은 보상 신호를 통해 학습하는 방식이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'mid',  text: 'Google DeepMind는 미국 샌프란시스코에서 설립되었다.', answer: 'X' },
+  { cat: 'AI',   diff: 'easy', text: 'NVIDIA는 GPU를 만드는 회사이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'hard', text: '엘런 튜링은 "튜링 테스트"를 1950년에 제안했다.', answer: 'O' },
+  { cat: 'AI',   diff: 'mid',  text: 'Anthropic의 대표 모델 시리즈 이름은 "Claude"이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'hard', text: 'RAG(검색 증강 생성)는 모델이 외부 지식을 검색해 답변에 활용하는 기법이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'mid',  text: 'Microsoft는 OpenAI에 투자한 주요 빅테크 기업 중 하나이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'hard', text: '버블 소트의 평균 시간복잡도는 O(n log n)이다.', answer: 'X' },
+  { cat: 'AI',   diff: 'mid',  text: 'Hugging Face는 NVIDIA가 운영하는 AI 모델 공유 플랫폼이다.', answer: 'X' },
+  { cat: 'AI',   diff: 'hard', text: '퍼셉트론은 1957년 프랑크 로젠블랫이 고안한 초기 신경망 모델이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'mid',  text: 'xAI는 샘 올트먼이 설립한 AI 기업이다.', answer: 'X' },
+  { cat: 'AI',   diff: 'hard', text: '시그모이드 함수의 출력 범위는 0과 1 사이이다.', answer: 'O' },
+
+  // ───────── 상식 (9) ─────────
+  { cat: '상식', diff: 'easy', text: '대한민국의 수도는 서울이다.', answer: 'O' },
+  { cat: '상식', diff: 'mid',  text: '태양은 행성이다.', answer: 'X' },
+  { cat: '상식', diff: 'easy', text: '1년은 365일이다.', answer: 'O' },
+  { cat: '상식', diff: 'mid',  text: '대한민국의 화폐 단위는 원(Won)이다.', answer: 'O' },
+  { cat: '상식', diff: 'easy', text: '지구는 태양 주위를 돈다.', answer: 'O' },
+  { cat: '상식', diff: 'hard', text: '세계에서 가장 인구가 많은 나라는 인도이다(2024년 기준).', answer: 'O' },
+  { cat: '상식', diff: 'mid',  text: '대한민국의 공식 언어는 한국어와 영어 두 가지이다.', answer: 'X' },
+  { cat: '상식', diff: 'easy', text: '일주일은 7일이다.', answer: 'O' },
+  { cat: '상식', diff: 'hard', text: 'UN 안전보장이사회 상임이사국은 모두 6개국이다.', answer: 'X' },
+
+  // ───────── 역사 (9) ─────────
+  { cat: '역사', diff: 'mid',  text: '임진왜란은 1592년에 발발했다.', answer: 'O' },
+  { cat: '역사', diff: 'hard', text: '훈민정음은 1543년에 반포되었다.', answer: 'X' },
+  { cat: '역사', diff: 'mid',  text: '대한민국 정부 수립은 1948년이다.', answer: 'O' },
+  { cat: '역사', diff: 'easy', text: '세종대왕은 조선의 4대 왕이다.', answer: 'O' },
+  { cat: '역사', diff: 'hard', text: '6.25 전쟁(한국전쟁)은 1950년에 시작되었다.', answer: 'O' },
+  { cat: '역사', diff: 'mid',  text: '삼국시대는 고구려, 백제, 신라로 구성된다.', answer: 'O' },
+  { cat: '역사', diff: 'hard', text: '광복절은 1945년 8월 15일이다.', answer: 'O' },
+  { cat: '역사', diff: 'mid',  text: '경복궁은 조선 왕조의 법궁(정궁)이다.', answer: 'O' },
+  { cat: '역사', diff: 'hard', text: '프랑스 대혁명은 1789년에 시작되었다.', answer: 'O' },
+
+  // ───────── 과학 (9) ─────────
+  { cat: '과학', diff: 'mid',  text: '물은 100°C에서만 증발한다.', answer: 'X' },
+  { cat: '과학', diff: 'hard', text: '광속은 진공에서 약 30만 km/s이다.', answer: 'O' },
+  { cat: '과학', diff: 'easy', text: '물의 화학식은 H2O이다.', answer: 'O' },
+  { cat: '과학', diff: 'mid',  text: '인간의 정상 체온은 약 36.5°C이다.', answer: 'O' },
+  { cat: '과학', diff: 'hard', text: 'DNA는 RNA보다 가닥 수가 적다(단일나선이다).', answer: 'X' },
+  { cat: '과학', diff: 'mid',  text: '지구의 자연 위성은 1개(달)이다.', answer: 'O' },
+  { cat: '과학', diff: 'hard', text: '뉴턴의 운동 법칙은 총 3개이다.', answer: 'O' },
+  { cat: '과학', diff: 'easy', text: '산소는 사람이 호흡에 필수로 사용하는 기체이다.', answer: 'O' },
+  { cat: '과학', diff: 'hard', text: '태양계에서 가장 큰 행성은 목성이다.', answer: 'O' },
+
+  // ───────── 스포츠 (8) ─────────
+  { cat: '스포츠', diff: 'easy', text: '월드컵은 4년마다 열린다.', answer: 'O' },
+  { cat: '스포츠', diff: 'mid',  text: '축구 한 팀의 경기 인원은 11명이다.', answer: 'O' },
+  { cat: '스포츠', diff: 'hard', text: '2002년 한일 월드컵에서 대한민국은 4강에 진출했다.', answer: 'O' },
+  { cat: '스포츠', diff: 'mid',  text: '올림픽은 매 2년마다 개최된다.', answer: 'X' },
+  { cat: '스포츠', diff: 'easy', text: '농구 한 팀의 경기 인원은 5명이다.', answer: 'O' },
+  { cat: '스포츠', diff: 'hard', text: '야구 한 경기는 기본적으로 9이닝으로 구성된다.', answer: 'O' },
+  { cat: '스포츠', diff: 'mid',  text: '손흥민은 스페인 라리가에서 활약한 선수이다.', answer: 'X' },
+  { cat: '스포츠', diff: 'hard', text: '태권도는 2000년 시드니 올림픽에서 정식 종목으로 채택되었다.', answer: 'O' },
+
+  // ───────── 영어 (8) ─────────
+  { cat: '영어', diff: 'mid',  text: '"economy"의 형용사형은 "economic"과 "economical" 두 가지가 있다.', answer: 'O' },
+  { cat: '영어', diff: 'hard', text: '"phenomenon"의 복수형은 "phenomena"이다.', answer: 'O' },
+  { cat: '영어', diff: 'mid',  text: '"Run"의 과거형은 "Runned"이다.', answer: 'X' },
+  { cat: '영어', diff: 'mid',  text: '"Beautiful"은 형용사이다.', answer: 'O' },
+  { cat: '영어', diff: 'mid',  text: '"despite"는 뒤에 명사(구)가 오고, "although"는 절이 온다.', answer: 'O' },
+  { cat: '영어', diff: 'hard', text: '"Their"와 "There"는 같은 발음이지만 뜻이 다른 동음이의어이다.', answer: 'O' },
+  { cat: '영어', diff: 'mid',  text: '"Go"의 과거형은 "Goed"이다.', answer: 'X' },
+  { cat: '영어', diff: 'hard', text: '"Octopus"의 복수형은 일반적으로 "Octopi" 또는 "Octopuses"로 쓰인다.', answer: 'O' },
+
+  // ───────── 속담 (8) ─────────
+  { cat: '속담', diff: 'mid',  text: '"백지장도 맞들면 낫다"는 협동의 의미다.', answer: 'O' },
+  { cat: '속담', diff: 'easy', text: '"가는 말이 고와야 오는 말이 곱다"는 친절을 강조하는 속담이다.', answer: 'O' },
+  { cat: '속담', diff: 'mid',  text: '"우물 안 개구리"는 견문이 넓은 사람을 뜻한다.', answer: 'X' },
+  { cat: '속담', diff: 'mid',  text: '"하늘이 무너져도 솟아날 구멍이 있다"는 희망을 의미한다.', answer: 'O' },
+  { cat: '속담', diff: 'easy', text: '"소 잃고 외양간 고친다"는 미리 대비하라는 뜻이다.', answer: 'X' },
+  { cat: '속담', diff: 'hard', text: '"등잔 밑이 어둡다"는 가까운 것을 잘 모른다는 뜻이다.', answer: 'O' },
+  { cat: '속담', diff: 'mid',  text: '"돌다리도 두들겨 보고 건너라"는 신중함을 강조한다.', answer: 'O' },
+  { cat: '속담', diff: 'hard', text: '"콩 심은 데 콩 나고 팥 심은 데 팥 난다"는 원인과 결과의 관계를 뜻한다.', answer: 'O' },
+
+  // ───────── 추가 문항 (101개) — 비율 유지 2배 확장 ─────────
+  // 게임 (+25, 히스토리 비중 유지)
+  { cat: '게임', diff: 'hard', text: '"동키콩"은 원래 마리오를 적으로 등장시킨 게임이다.', answer: 'O' },
+  { cat: '게임', diff: 'mid',  text: '"하프라이프"는 밸브가 개발한 1인칭 슈팅 게임이다.', answer: 'O' },
+  { cat: '게임', diff: 'hard', text: '"롤플레잉게임(RPG)"이라는 장르명은 일본에서 처음 만들어졌다.', answer: 'X' },
+  { cat: '게임', diff: 'mid',  text: '"심즈"는 블리자드가 개발했다.', answer: 'X' },
+  { cat: '게임', diff: 'hard', text: '세계 최초의 e스포츠 대회는 1972년 스탠퍼드 대학에서 열린 스페이스워! 대회이다.', answer: 'O' },
+  { cat: '게임', diff: 'mid',  text: '"포트나이트"는 에픽게임즈가 개발했다.', answer: 'O' },
+  { cat: '게임', diff: 'hard', text: '닌텐도의 "동물의 숲"은 2001년 일본에서 첫 출시되었다.', answer: 'O' },
+  { cat: '게임', diff: 'mid',  text: '"카운터 스트라이크"는 원래 하프라이프의 모드(MOD)로 시작했다.', answer: 'O' },
+  { cat: '게임', diff: 'hard', text: '플레이스테이션은 원래 닌텐도와 소니의 공동 개발 프로젝트로 시작되었다.', answer: 'O' },
+  { cat: '게임', diff: 'mid',  text: '"젤다의 전설"의 주인공 이름은 젤다이다.', answer: 'X' },
+  { cat: '게임', diff: 'hard', text: '"커맨드 앤 컹커"는 RTS(실시간 전략) 장르를 대중화시킨 초기 게임 중 하나다.', answer: 'O' },
+  { cat: '게임', diff: 'mid',  text: '"메이플스토리"는 한국 넥슨이 개발한 게임이다.', answer: 'O' },
+  { cat: '게임', diff: 'hard', text: '아타리는 1972년 놀란 부쉬넬이 설립했다.', answer: 'O' },
+  { cat: '게임', diff: 'mid',  text: '"배틀그라운드(PUBG)"는 블리자드가 개발했다.', answer: 'X' },
+  { cat: '게임', diff: 'hard', text: '세가의 마스코트 캐릭터는 소닉이며, 닌텐도의 마리오와 경쟁 구도를 이뤘다.', answer: 'O' },
+  { cat: '게임', diff: 'mid',  text: '"클래시 오브 클랜"은 에픽게임즈가 개발한 모바일 게임이다.', answer: 'X' },
+  { cat: '게임', diff: 'hard', text: '최초의 3D 그래픽 비디오게임은 1990년대에 처음 등장했다.', answer: 'X' },
+  { cat: '게임', diff: 'mid',  text: '"엘든 링"은 프롬소프트웨어가 개발했다.', answer: 'O' },
+  { cat: '게임', diff: 'hard', text: '닌텐도 게임보이는 1989년에 출시되었다.', answer: 'O' },
+  { cat: '게임', diff: 'mid',  text: '"하스스톤"은 블리자드의 카드 게임이다.', answer: 'O' },
+  { cat: '게임', diff: 'hard', text: '"문명(Civilization)" 시리즈를 만든 인물은 시드 마이어이다.', answer: 'O' },
+  { cat: '게임', diff: 'mid',  text: '"로블록스"는 사용자 제작 콘텐츠 중심의 플랫폼이다.', answer: 'O' },
+  { cat: '게임', diff: 'hard', text: '"심시티"는 시드 마이어가 단독으로 개발한 게임이다.', answer: 'X' },
+  { cat: '게임', diff: 'mid',  text: '"발로란트"는 라이엇 게임즈가 개발했다.', answer: 'O' },
+  { cat: '게임', diff: 'hard', text: '1989년 출시된 "프린스 오브 페르시아"는 로토스코핑 기법으로 캐릭터 애니메이션을 제작했다.', answer: 'O' },
+
+  // AI (+25)
+  { cat: 'AI',   diff: 'mid',  text: 'Sora는 Google DeepMind가 발표한 텍스트-비디오 생성 모델이다.', answer: 'X' },
+  { cat: 'AI',   diff: 'hard', text: 'BERT는 구글이 개발한 양방향 트랜스포머 모델이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'mid',  text: 'Gemini는 구글 딥마인드의 멀티모달 AI 모델이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'hard', text: '오토인코더(Autoencoder)는 비지도학습에 주로 사용되는 신경망 구조이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'mid',  text: 'Mistral AI는 프랑스에서 설립된 AI 기업이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'hard', text: '드롭아웃(Dropout)은 신경망 학습 시 과적합을 방지하는 기법이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'mid',  text: 'IBM의 왓슨은 2011년 퀴즈쇼 제퍼디에서 인간 챔피언을 이겼다.', answer: 'O' },
+  { cat: 'AI',   diff: 'hard', text: 'GAN(생성적 적대 신경망)은 생성자와 판별자 두 네트워크로 구성된다.', answer: 'O' },
+  { cat: 'AI',   diff: 'mid',  text: 'Cohere는 대표적인 검색엔진 회사이며 AI 모델을 만들지 않는다.', answer: 'X' },
+  { cat: 'AI',   diff: 'hard', text: '딕셔너리(해시맵)의 평균 탐색 시간복잡도는 O(1)이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'mid',  text: 'Midjourney는 텍스트로 이미지를 생성하는 AI 서비스이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'hard', text: '파인튜닝(Fine-tuning)은 사전학습된 모델을 특정 작업에 맞춰 추가 학습시키는 기법이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'mid',  text: 'Apple은 자체 LLM 브랜드로 "Apple Intelligence"를 발표했다.', answer: 'O' },
+  { cat: 'AI',   diff: 'hard', text: '어텐션 메커니즘(Attention)은 RNN보다 트랜스포머에서 먼저 고안되었다.', answer: 'X' },
+  { cat: 'AI',   diff: 'mid',  text: 'DALL-E는 OpenAI의 이미지 생성 모델이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'hard', text: 'LSTM은 RNN의 장기 의존성 문제를 해결하기 위해 고안되었다.', answer: 'O' },
+  { cat: 'AI',   diff: 'mid',  text: 'Perplexity는 AI 기반 검색 엔진 서비스 중 하나이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'hard', text: '연결 리스트(Linked List)의 임의 접근 시간복잡도는 O(1)이다.', answer: 'X' },
+  { cat: 'AI',   diff: 'mid',  text: 'Suno는 AI 음악 생성 서비스이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'hard', text: 'CNN(합성곱 신경망)은 주로 이미지 처리에 사용된다.', answer: 'O' },
+  { cat: 'AI',   diff: 'mid',  text: 'Baidu(바이두)는 중국의 대표적인 AI/검색 기업이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'hard', text: '에이다 러브레이스는 최초의 컴퓨터 프로그래머로 평가받는 인물이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'mid',  text: 'Runway는 AI 비디오 생성 도구를 만드는 회사이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'hard', text: '이진 탐색(Binary Search)의 시간복잡도는 O(n)이다.', answer: 'X' },
+  { cat: 'AI',   diff: 'mid',  text: 'Character.AI는 캐릭터 대화형 챗봇 서비스를 제공한다.', answer: 'O' },
+
+  // 상식 (+9)
+  { cat: '상식', diff: 'mid',  text: '대한민국의 국화(國花)는 장미이다.', answer: 'X' },
+  { cat: '상식', diff: 'easy', text: '한 시간은 60분이다.', answer: 'O' },
+  { cat: '상식', diff: 'hard', text: '세계에서 가장 면적이 큰 나라는 러시아이다.', answer: 'O' },
+  { cat: '상식', diff: 'mid',  text: '대한민국의 표준시는 UTC+9이다.', answer: 'O' },
+  { cat: '상식', diff: 'easy', text: '하루는 24시간이다.', answer: 'O' },
+  { cat: '상식', diff: 'hard', text: '에베레스트산은 네팔과 중국의 국경에 있다.', answer: 'O' },
+  { cat: '상식', diff: 'mid',  text: '대한민국의 1년 예산은 매년 국회에서 심의·확정된다.', answer: 'O' },
+  { cat: '상식', diff: 'easy', text: '12월은 1년 중 마지막 달이다.', answer: 'O' },
+  { cat: '상식', diff: 'hard', text: 'UN 본부는 스위스 제네바에 있다.', answer: 'X' },
+
+  // 역사 (+9)
+  { cat: '역사', diff: 'mid',  text: '갑오개혁은 1894년에 시행되었다.', answer: 'O' },
+  { cat: '역사', diff: 'hard', text: '안중근은 이토 히로부미를 하얼빈에서 저격했다.', answer: 'O' },
+  { cat: '역사', diff: 'mid',  text: '고려는 조선보다 먼저 건국되었다.', answer: 'O' },
+  { cat: '역사', diff: 'easy', text: '대한민국 임시정부는 상하이에서 수립되었다.', answer: 'O' },
+  { cat: '역사', diff: 'hard', text: '동학농민운동은 1884년에 일어났다.', answer: 'X' },
+  { cat: '역사', diff: 'mid',  text: '강화도 조약은 1895년 체결되었다.', answer: 'X' },
+  { cat: '역사', diff: 'hard', text: '제1차 세계대전은 1914년에 시작되었다.', answer: 'O' },
+  { cat: '역사', diff: 'mid',  text: '신라는 삼국 중 가장 먼저 멸망한 나라이다.', answer: 'X' },
+  { cat: '역사', diff: 'hard', text: '베를린 장벽은 1989년에 붕괴되었다.', answer: 'O' },
+
+  // 과학 (+9)
+  { cat: '과학', diff: 'mid',  text: '인간의 몸에는 약 206개의 뼈가 있다.', answer: 'O' },
+  { cat: '과학', diff: 'hard', text: '전자는 음전하를 띤다.', answer: 'O' },
+  { cat: '과학', diff: 'easy', text: '식물은 광합성을 통해 산소를 만든다.', answer: 'O' },
+  { cat: '과학', diff: 'mid',  text: '소리는 진공 상태에서도 전달된다.', answer: 'X' },
+  { cat: '과학', diff: 'hard', text: '인간 DNA의 약 99%는 침팬지와 유사하다.', answer: 'O' },
+  { cat: '과학', diff: 'mid',  text: '금성은 태양계에서 태양과 가장 가까운 행성이다.', answer: 'X' },
+  { cat: '과학', diff: 'hard', text: '원자핵은 양성자와 중성자로 이루어진다.', answer: 'O' },
+  { cat: '과학', diff: 'easy', text: '얼음은 물보다 밀도가 높아 물에 가라앉는다.', answer: 'X' },
+  { cat: '과학', diff: 'hard', text: '빅뱅 이론에 따르면 우주는 약 138억 년 전에 시작되었다.', answer: 'O' },
+
+  // 스포츠 (+8)
+  { cat: '스포츠', diff: 'mid',  text: '배구 한 팀의 경기 인원은 6명이다.', answer: 'O' },
+  { cat: '스포츠', diff: 'easy', text: '테니스는 라켓을 사용하는 스포츠이다.', answer: 'O' },
+  { cat: '스포츠', diff: 'hard', text: '동계올림픽과 하계올림픽은 같은 해에 개최된다.', answer: 'X' },
+  { cat: '스포츠', diff: 'mid',  text: '골프에서 "버디"는 기준 타수보다 한 타 많이 친 것을 뜻한다.', answer: 'X' },
+  { cat: '스포츠', diff: 'easy', text: '핸드볼은 손으로 공을 다루는 스포츠이다.', answer: 'O' },
+  { cat: '스포츠', diff: 'hard', text: 'F1 경기는 매 시즌 같은 트랙에서만 개최된다.', answer: 'X' },
+  { cat: '스포츠', diff: 'mid',  text: '메이저리그(MLB)는 미국과 캐나다의 프로야구 리그이다.', answer: 'O' },
+  { cat: '스포츠', diff: 'hard', text: '대한민국은 1988년 서울 올림픽을 개최했다.', answer: 'O' },
+
+  // 영어 (+8)
+  { cat: '영어', diff: 'hard', text: '"criterion"의 복수형은 "criterions"이다.', answer: 'X' },
+  { cat: '영어', diff: 'mid',  text: '"Good"의 비교급은 "Gooder"이다.', answer: 'X' },
+  { cat: '영어', diff: 'mid',  text: '"affect"는 주로 명사, "effect"는 주로 동사로 쓰인다.', answer: 'X' },
+  { cat: '영어', diff: 'hard', text: '"Knight"의 "K"는 발음하지 않는다.', answer: 'O' },
+  { cat: '영어', diff: 'mid',  text: '"Child"의 복수형은 "Childs"이다.', answer: 'X' },
+  { cat: '영어', diff: 'hard', text: '가정법 과거에서는 be동사로 인칭과 무관하게 "was"를 쓴다.', answer: 'X' },
+  { cat: '영어', diff: 'hard', text: '"Sheep"의 단수형과 복수형은 동일하다.', answer: 'O' },
+  { cat: '영어', diff: 'mid',  text: '"See"의 과거형은 "Saw"이다.', answer: 'O' },
+
+  // 속담 (+8)
+  { cat: '속담', diff: 'mid',  text: '"발 없는 말이 천 리 간다"는 말을 타면 빨리 간다는 뜻이다.', answer: 'X' },
+  { cat: '속담', diff: 'easy', text: '"누워서 떡 먹기"는 어려운 일을 의미한다.', answer: 'X' },
+  { cat: '속담', diff: 'mid',  text: '"낮말은 새가 듣고 밤말은 쥐가 듣는다"는 말조심을 강조한다.', answer: 'O' },
+  { cat: '속담', diff: 'hard', text: '"바늘 도둑이 소 도둑 된다"는 작은 잘못이 큰 잘못으로 이어진다는 뜻이다.', answer: 'O' },
+  { cat: '속담', diff: 'mid',  text: '"개구리 올챙이 적 생각 못한다"는 과거를 잊지 않는다는 뜻이다.', answer: 'X' },
+  { cat: '속담', diff: 'easy', text: '"천 리 길도 한 걸음부터"는 시작의 중요성을 의미한다.', answer: 'O' },
+  { cat: '속담', diff: 'hard', text: '"가재는 게 편"은 비슷한 처지의 사람들이 서로 돕는다는 뜻이다.', answer: 'O' },
+  { cat: '속담', diff: 'mid',  text: '"호랑이도 제 말 하면 온다"는 그 자리에 없는 사람 얘기를 하지 말라는 뜻이다.', answer: 'O' },
+
+  // ───────── 추가 문항 (98개) — 300문항 확장, 비율 유지 ─────────
+  // 게임 (+24, 히스토리 비중 유지)
+  { cat: '게임', diff: 'hard', text: '"갤러그"는 남코가 1981년 출시한 슈팅 게임이다.', answer: 'O' },
+  { cat: '게임', diff: 'mid',  text: '"리그 오브 레전드"는 라이엇 게임즈가 개발했다.', answer: 'O' },
+  { cat: '게임', diff: 'hard', text: '"팩맨"의 일본 원제는 "퍽맨(Puck Man)"이었다.', answer: 'O' },
+  { cat: '게임', diff: 'mid',  text: '"앵그리버드"는 핀란드의 로비오가 개발했다.', answer: 'O' },
+  { cat: '게임', diff: 'hard', text: '닌텐도 "패미컴"은 북미에서 NES라는 이름으로 출시되었다.', answer: 'O' },
+  { cat: '게임', diff: 'mid',  text: '"스타듀밸리"는 한 명의 개발자가 거의 혼자 제작했다.', answer: 'O' },
+  { cat: '게임', diff: 'hard', text: '"DOOM(둠)"은 1993년 id Software가 출시했다.', answer: 'O' },
+  { cat: '게임', diff: 'mid',  text: '"젠레스 존 제로"는 호요버스가 개발한 게임이다.', answer: 'O' },
+  { cat: '게임', diff: 'hard', text: '"테트리스"는 1984년 소련에서 처음 만들어졌다.', answer: 'O' },
+  { cat: '게임', diff: 'mid',  text: '"디아블로 2"는 2000년에 출시되었다.', answer: 'O' },
+  { cat: '게임', diff: 'hard', text: '플레이스테이션2는 역대 가장 많이 팔린 콘솔 중 하나이다.', answer: 'O' },
+  { cat: '게임', diff: 'mid',  text: '"젤다의 전설: 야생의 숨결"은 닌텐도 스위치 런칭 타이틀이다.', answer: 'O' },
+  { cat: '게임', diff: 'hard', text: '"워크래프트"는 원래 1인칭 슈팅 게임으로 시작했다.', answer: 'X' },
+  { cat: '게임', diff: 'mid',  text: '"카트라이더"는 넥슨이 서비스한 레이싱 게임이다.', answer: 'O' },
+  { cat: '게임', diff: 'hard', text: '"스트리트 파이터 2"는 대전 격투 게임 장르를 대중화했다.', answer: 'O' },
+  { cat: '게임', diff: 'mid',  text: '"림월드"는 콜로니 시뮬레이션 게임이다.', answer: 'O' },
+  { cat: '게임', diff: 'hard', text: '아케이드 게임 "디그더그"는 남코가 만들었다.', answer: 'O' },
+  { cat: '게임', diff: 'mid',  text: '"原神(원신)"은 호요버스(miHoYo)가 개발했다.', answer: 'O' },
+  { cat: '게임', diff: 'hard', text: '세가 새턴은 플레이스테이션1과 같은 세대의 콘솔이었다.', answer: 'O' },
+  { cat: '게임', diff: 'mid',  text: '"테라리아"는 2D 샌드박스 게임이다.', answer: 'O' },
+  { cat: '게임', diff: 'hard', text: '"메탈기어" 시리즈의 제작자는 코지마 히데오이다.', answer: 'O' },
+  { cat: '게임', diff: 'mid',  text: '"스플래툰"은 닌텐도의 슈팅 게임 시리즈이다.', answer: 'O' },
+  { cat: '게임', diff: 'hard', text: '"퐁(Pong)"은 아타리의 첫 아케이드 게임이다.', answer: 'O' },
+  { cat: '게임', diff: 'mid',  text: '"갓 오브 워"는 소니의 대표 독점 게임 중 하나이다.', answer: 'O' },
+
+  // AI (+24)
+  { cat: 'AI',   diff: 'mid',  text: 'Claude는 Anthropic이 개발한 AI 모델이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'hard', text: 'ResNet은 잔차 연결(residual connection)을 도입한 신경망 구조이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'mid',  text: 'GPT의 "T"는 Transformer를 의미한다.', answer: 'O' },
+  { cat: 'AI',   diff: 'hard', text: '소프트맥스(Softmax) 함수는 출력값의 합을 1로 정규화한다.', answer: 'O' },
+  { cat: 'AI',   diff: 'mid',  text: 'DeepSeek은 중국의 AI 모델 개발사이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'hard', text: '경사하강법(Gradient Descent)은 손실 함수를 최소화하는 최적화 기법이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'mid',  text: 'AlphaFold는 단백질 구조 예측 AI이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'hard', text: '오버피팅(과적합)은 학습 데이터에만 과도하게 맞춰진 상태를 뜻한다.', answer: 'O' },
+  { cat: 'AI',   diff: 'mid',  text: 'Whisper는 OpenAI의 음성 인식 모델이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'hard', text: '토큰(token)은 LLM이 텍스트를 처리하는 기본 단위이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'mid',  text: 'Qwen은 알리바바가 개발한 LLM 시리즈이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'hard', text: '큐러닝(Q-learning)은 강화학습 알고리즘의 하나이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'mid',  text: 'Grok은 xAI가 개발한 챗봇이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'hard', text: '배치 정규화(Batch Normalization)는 학습을 안정화하는 기법이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'mid',  text: 'ImageNet은 대규모 이미지 데이터셋이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'hard', text: '퀵정렬의 최악 시간복잡도는 O(n²)이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'mid',  text: 'NeurIPS는 대표적인 머신러닝 학술대회이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'hard', text: '임베딩(Embedding)은 데이터를 벡터 공간으로 표현하는 기법이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'mid',  text: 'TensorFlow는 구글이 만든 딥러닝 프레임워크이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'hard', text: 'PyTorch는 메타(Facebook)가 주도해 개발한 프레임워크이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'mid',  text: 'ElevenLabs는 AI 음성 합성 서비스이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'hard', text: '재귀(recursion)는 함수가 자기 자신을 호출하는 기법이다.', answer: 'O' },
+  { cat: 'AI',   diff: 'mid',  text: '튜링상(Turing Award)은 컴퓨터과학 분야의 노벨상으로 불린다.', answer: 'O' },
+  { cat: 'AI',   diff: 'hard', text: '스택(Stack)은 FIFO(선입선출) 구조이다.', answer: 'X' },
+
+  // 상식 (+9)
+  { cat: '상식', diff: 'mid',  text: '나침반의 N극은 지구의 북쪽을 가리킨다.', answer: 'O' },
+  { cat: '상식', diff: 'hard', text: '대한민국의 국회의원 임기는 4년이다.', answer: 'O' },
+  { cat: '상식', diff: 'easy', text: '무지개는 보통 7가지 색으로 표현된다.', answer: 'O' },
+  { cat: '상식', diff: 'mid',  text: '적도는 지구를 남반구와 북반구로 나누는 기준선이다.', answer: 'O' },
+  { cat: '상식', diff: 'hard', text: '대한민국 대통령의 임기는 5년 단임제이다.', answer: 'O' },
+  { cat: '상식', diff: 'easy', text: '봄·여름·가을·겨울은 4계절이다.', answer: 'O' },
+  { cat: '상식', diff: 'mid',  text: '대한민국의 가장 높은 산은 한라산이다.', answer: 'O' },
+  { cat: '상식', diff: 'hard', text: '세계에서 가장 긴 강은 나일강 또는 아마존강으로 논쟁이 있다.', answer: 'O' },
+  { cat: '상식', diff: 'mid',  text: '태극기의 네 모서리 괘는 건곤감리이다.', answer: 'O' },
+
+  // 역사 (+9)
+  { cat: '역사', diff: 'mid',  text: '훈민정음은 세종대왕 때 창제되었다.', answer: 'O' },
+  { cat: '역사', diff: 'hard', text: '병자호란은 1636년에 일어났다.', answer: 'O' },
+  { cat: '역사', diff: 'mid',  text: '3.1 운동은 1919년에 일어났다.', answer: 'O' },
+  { cat: '역사', diff: 'easy', text: '이순신은 임진왜란 때 활약한 장군이다.', answer: 'O' },
+  { cat: '역사', diff: 'hard', text: '고구려를 건국한 인물은 주몽(동명성왕)이다.', answer: 'O' },
+  { cat: '역사', diff: 'mid',  text: '발해는 고구려 유민이 세운 나라이다.', answer: 'O' },
+  { cat: '역사', diff: 'hard', text: '미국 독립선언은 1776년에 발표되었다.', answer: 'O' },
+  { cat: '역사', diff: 'mid',  text: '로마 제국은 동서로 분열된 적이 있다.', answer: 'O' },
+  { cat: '역사', diff: 'hard', text: '제2차 세계대전은 1945년에 종전되었다.', answer: 'O' },
+
+  // 과학 (+9)
+  { cat: '과학', diff: 'mid',  text: '소금의 화학식은 NaCl이다.', answer: 'O' },
+  { cat: '과학', diff: 'hard', text: '빛은 전자기파의 일종이다.', answer: 'O' },
+  { cat: '과학', diff: 'easy', text: '인간은 폐로 호흡한다.', answer: 'O' },
+  { cat: '과학', diff: 'mid',  text: '물질의 상태에는 고체, 액체, 기체가 있다.', answer: 'O' },
+  { cat: '과학', diff: 'hard', text: '지구의 대기에서 가장 많은 비율을 차지하는 기체는 질소이다.', answer: 'O' },
+  { cat: '과학', diff: 'mid',  text: '인체에서 가장 큰 장기는 피부이다.', answer: 'O' },
+  { cat: '과학', diff: 'hard', text: '절대영도는 약 -273.15°C이다.', answer: 'O' },
+  { cat: '과학', diff: 'easy', text: '낮과 밤은 지구의 자전 때문에 생긴다.', answer: 'O' },
+  { cat: '과학', diff: 'hard', text: '혈액형 중 AB형은 모든 혈액형으로부터 적혈구를 받을 수 있는 만능 수혈자이다.', answer: 'O' },
+
+  // 스포츠 (+8)
+  { cat: '스포츠', diff: 'mid',  text: '마라톤의 정식 거리는 약 42.195km이다.', answer: 'O' },
+  { cat: '스포츠', diff: 'easy', text: '축구에서 골키퍼는 손을 사용할 수 있다.', answer: 'O' },
+  { cat: '스포츠', diff: 'hard', text: '올림픽 오륜기의 고리는 5개이다.', answer: 'O' },
+  { cat: '스포츠', diff: 'mid',  text: '농구에서 3점슛은 골대 가까이에서 던진 슛이다.', answer: 'X' },
+  { cat: '스포츠', diff: 'hard', text: '김연아는 2010 밴쿠버 동계올림픽 피겨 금메달리스트이다.', answer: 'O' },
+  { cat: '스포츠', diff: 'mid',  text: '배드민턴은 셔틀콕을 사용하는 스포츠이다.', answer: 'O' },
+  { cat: '스포츠', diff: 'easy', text: '수영은 물에서 하는 스포츠이다.', answer: 'O' },
+  { cat: '스포츠', diff: 'hard', text: '럭비와 미식축구는 완전히 동일한 규칙의 스포츠이다.', answer: 'X' },
+
+  // 영어 (+8, 모두 중급 이상)
+  { cat: '영어', diff: 'mid',  text: '"information"은 셀 수 없는 명사라 복수형 "informations"를 쓰지 않는다.', answer: 'O' },
+  { cat: '영어', diff: 'hard', text: '"lie(눕다)"의 과거형은 "lay"이다.', answer: 'O' },
+  { cat: '영어', diff: 'mid',  text: '"fewer"는 셀 수 있는 명사, "less"는 셀 수 없는 명사에 쓴다.', answer: 'O' },
+  { cat: '영어', diff: 'hard', text: '"analysis"의 복수형은 "analyses"이다.', answer: 'O' },
+  { cat: '영어', diff: 'mid',  text: '"used to"는 과거의 습관을, "be used to"는 익숙함을 나타낸다.', answer: 'O' },
+  { cat: '영어', diff: 'hard', text: '관계대명사 "whom"은 목적격으로 쓰인다.', answer: 'O' },
+  { cat: '영어', diff: 'mid',  text: '"complement"와 "compliment"는 뜻이 다른 단어이다.', answer: 'O' },
+  { cat: '영어', diff: 'hard', text: '"foot"의 복수형은 "foots"이다.', answer: 'X' },
+
+  // 속담 (+7)
+  { cat: '속담', diff: 'mid',  text: '"빈 수레가 요란하다"는 실속 없는 사람이 더 떠든다는 뜻이다.', answer: 'O' },
+  { cat: '속담', diff: 'easy', text: '"티끌 모아 태산"은 작은 것도 모으면 큰 것이 된다는 뜻이다.', answer: 'O' },
+  { cat: '속담', diff: 'hard', text: '"under the weather"는 영어로 몸이 안 좋다는 표현이다.', answer: 'O' },
+  { cat: '속담', diff: 'mid',  text: '"믿는 도끼에 발등 찍힌다"는 도끼를 조심하라는 안전 교육 속담이다.', answer: 'X' },
+  { cat: '속담', diff: 'hard', text: '"고래 싸움에 새우 등 터진다"는 강자끼리 싸울 때 약자가 피해를 본다는 뜻이다.', answer: 'O' },
+  { cat: '속담', diff: 'mid',  text: '"원숭이도 나무에서 떨어진다"는 전문가도 실수할 수 있다는 뜻이다.', answer: 'O' },
+  { cat: '속담', diff: 'easy', text: '"식은 죽 먹기"는 매우 쉬운 일을 뜻한다.', answer: 'O' },
+];
+
+// =========================================================
+// AI300 문제 은행 (AI 전문 카테고리 300문항 / 상중 난이도)
+// 카테고리: LLM모델(50) / 빅테크(40) / AI역사·인물(40) /
+//           알고리즘·자료구조(50) / AI응용·서비스(40) /
+//           논문·연구(40) / 철학·윤리(40)
+// =========================================================
+const QUESTIONS_AI = [
+  // ───────── LLM 모델 (50) ─────────
+  { cat:'LLM모델', diff:'mid',  text:'GPT-4는 멀티모달(텍스트+이미지) 입력을 지원한다.', answer:'O' },
+  { cat:'LLM모델', diff:'hard', text:'GPT-4o의 "o"는 "omni"를 의미한다.', answer:'O' },
+  { cat:'LLM모델', diff:'mid',  text:'Claude 3 Opus는 Anthropic의 가장 큰 규모의 모델이다.', answer:'O' },
+  { cat:'LLM모델', diff:'hard', text:'Llama 3는 Meta가 공개한 오픈웨이트 모델이다.', answer:'O' },
+  { cat:'LLM모델', diff:'mid',  text:'Gemini Ultra는 OpenAI의 최상위 모델이다.', answer:'X' },
+  { cat:'LLM모델', diff:'hard', text:'Mistral 7B는 파라미터 수가 70억 개이다.', answer:'O' },
+  { cat:'LLM모델', diff:'mid',  text:'Mixtral은 순수 Dense 트랜스포머 아키텍처를 사용한다.', answer:'X' },
+  { cat:'LLM모델', diff:'hard', text:'Claude는 Constitutional AI 방법론으로 학습되었다.', answer:'O' },
+  { cat:'LLM모델', diff:'mid',  text:'GPT-3.5는 GPT-4보다 출시가 늦다.', answer:'X' },
+  { cat:'LLM모델', diff:'hard', text:'Qwen2.5는 알리바바의 오픈소스 LLM 시리즈이다.', answer:'O' },
+  { cat:'LLM모델', diff:'mid',  text:'DeepSeek R1은 추론(reasoning) 특화 모델이다.', answer:'O' },
+  { cat:'LLM모델', diff:'hard', text:'Phi-3은 Microsoft가 개발한 소형(small) LLM 시리즈이다.', answer:'O' },
+  { cat:'LLM모델', diff:'mid',  text:'Grok-2는 xAI가 출시한 모델이다.', answer:'O' },
+  { cat:'LLM모델', diff:'hard', text:'LLaMA의 원래 논문 제목에는 "Foundation Language Models"가 포함된다.', answer:'O' },
+  { cat:'LLM모델', diff:'mid',  text:'ChatGPT는 GPT-4를 파인튜닝한 모델로 출발했다.', answer:'X' },
+  { cat:'LLM모델', diff:'hard', text:'Gemma는 Meta가 공개한 경량 오픈웨이트 모델이다.', answer:'X' },
+  { cat:'LLM모델', diff:'mid',  text:'Claude Haiku는 Claude Opus보다 속도가 빠르고 비용이 낮다.', answer:'O' },
+  { cat:'LLM모델', diff:'hard', text:'GPT-4 Turbo는 GPT-4보다 컨텍스트 윈도우가 더 크다.', answer:'O' },
+  { cat:'LLM모델', diff:'mid',  text:'Cohere Command R은 RAG에 최적화된 모델이다.', answer:'O' },
+  { cat:'LLM모델', diff:'hard', text:'WizardLM은 복잡한 명령어 처리를 위해 Evol-Instruct 기법을 사용했다.', answer:'O' },
+  { cat:'LLM모델', diff:'mid',  text:'Yi 시리즈는 Baidu가 개발한 LLM이다.', answer:'X' },
+  { cat:'LLM모델', diff:'hard', text:'Falcon 모델은 UAE의 Technology Innovation Institute(TII)가 개발했다.', answer:'O' },
+  { cat:'LLM모델', diff:'mid',  text:'Solar 10.7B는 한국 카카오가 개발한 LLM이다.', answer:'X' },
+  { cat:'LLM모델', diff:'hard', text:'EXAONE은 LG AI Research가 개발한 모델이다.', answer:'O' },
+  { cat:'LLM모델', diff:'mid',  text:'HyperCLOVA X는 카카오가 개발한 한국어 LLM이다.', answer:'X' },
+  { cat:'LLM모델', diff:'hard', text:'InternLM은 상하이 AI Laboratory가 개발한 모델이다.', answer:'O' },
+  { cat:'LLM모델', diff:'mid',  text:'GPT-4V는 이미지를 이해할 수 있는 비전 기능을 갖췄다.', answer:'O' },
+  { cat:'LLM모델', diff:'hard', text:'Jamba는 Mamba 아키텍처와 트랜스포머를 결합한 AI21 Labs의 모델이다.', answer:'O' },
+  { cat:'LLM모델', diff:'mid',  text:'Amazon Bedrock은 구글의 LLM API 제공 서비스이다.', answer:'X' },
+  { cat:'LLM모델', diff:'hard', text:'SOLAR 10.7B는 Depth Up-Scaling 기법으로 모델 크기를 키웠다.', answer:'O' },
+  { cat:'LLM모델', diff:'mid',  text:'Llama Guard는 안전성 분류를 위한 Meta의 모델이다.', answer:'O' },
+  { cat:'LLM모델', diff:'hard', text:'Command R+는 Command R보다 파라미터 수가 많다.', answer:'O' },
+  { cat:'LLM모델', diff:'mid',  text:'Gemini Nano는 온디바이스(모바일) 실행에 최적화됐다.', answer:'O' },
+  { cat:'LLM모델', diff:'hard', text:'OLMo는 AI2(Allen Institute)가 공개한 완전 오픈소스 LLM이다.', answer:'O' },
+  { cat:'LLM모델', diff:'mid',  text:'ChatGLM은 중국 Tsinghua대학 및 Zhipu AI가 개발했다.', answer:'O' },
+  { cat:'LLM모델', diff:'hard', text:'Perplexity AI의 pplx 모델은 웹 검색 결과를 활용한 답변을 제공한다.', answer:'O' },
+  { cat:'LLM모델', diff:'mid',  text:'o1(o-one) 모델은 OpenAI의 추론 특화 모델 시리즈이다.', answer:'O' },
+  { cat:'LLM모델', diff:'hard', text:'Nemotron은 NVIDIA가 개발한 LLM 시리즈이다.', answer:'O' },
+  { cat:'LLM모델', diff:'mid',  text:'CLOVA X는 카카오가 개발한 한국어 특화 LLM이다.', answer:'X' },
+  { cat:'LLM모델', diff:'hard', text:'Aya는 Cohere for AI가 다국어 지원을 위해 공개한 모델이다.', answer:'O' },
+  { cat:'LLM모델', diff:'mid',  text:'GPT-2는 2019년 OpenAI가 처음에는 공개를 거부한 모델이다.', answer:'O' },
+  { cat:'LLM모델', diff:'hard', text:'Mamba는 선택적 상태 공간 모델(SSM) 기반 언어 모델이다.', answer:'O' },
+  { cat:'LLM모델', diff:'mid',  text:'Claude 3.5 Sonnet은 Claude 3 Opus보다 성능이 높다고 평가된다.', answer:'O' },
+  { cat:'LLM모델', diff:'hard', text:'Stable LM은 Stability AI가 공개한 오픈소스 언어 모델이다.', answer:'O' },
+  { cat:'LLM모델', diff:'mid',  text:'Baichuan은 중국의 Baichuan Intelligence가 개발한 모델이다.', answer:'O' },
+  { cat:'LLM모델', diff:'hard', text:'RedPajama는 LLM 사전 학습용 오픈 데이터셋이다.', answer:'O' },
+  { cat:'LLM모델', diff:'mid',  text:'Vicuna는 LLaMA를 ShareGPT 대화 데이터로 파인튜닝한 모델이다.', answer:'O' },
+  { cat:'LLM모델', diff:'hard', text:'Alpaca는 Stanford 연구팀이 LLaMA를 Self-Instruct로 파인튜닝한 모델이다.', answer:'O' },
+  { cat:'LLM모델', diff:'mid',  text:'Granite은 IBM이 개발한 엔터프라이즈용 LLM 시리즈이다.', answer:'O' },
+  { cat:'LLM모델', diff:'hard', text:'Zephyr는 Hugging Face가 DPO(Direct Preference Optimization)로 학습한 모델이다.', answer:'O' },
+
+  // ───────── 빅테크 (40) ─────────
+  { cat:'빅테크', diff:'mid',  text:'OpenAI는 비영리 조직으로 시작했다.', answer:'O' },
+  { cat:'빅테크', diff:'hard', text:'Microsoft는 OpenAI에 130억 달러 이상을 투자했다.', answer:'O' },
+  { cat:'빅테크', diff:'mid',  text:'Google DeepMind는 Google Brain과 OpenAI의 합병으로 만들어졌다.', answer:'X' },
+  { cat:'빅테크', diff:'hard', text:'Anthropic의 창립자들은 대부분 OpenAI 출신이다.', answer:'O' },
+  { cat:'빅테크', diff:'mid',  text:'Meta AI Research는 FAIR(Fundamental AI Research)라고도 불린다.', answer:'O' },
+  { cat:'빅테크', diff:'hard', text:'AWS의 AI 칩 이름은 "Trainium"과 "Inferentia"이다.', answer:'O' },
+  { cat:'빅테크', diff:'mid',  text:'NVIDIA의 H100 GPU는 개인 소비자용 게이밍에 사용된다.', answer:'X' },
+  { cat:'빅테크', diff:'hard', text:'Google의 TPU는 Tensor Processing Unit의 약자이다.', answer:'O' },
+  { cat:'빅테크', diff:'mid',  text:'Baidu의 AI 챗봇 서비스 이름은 "Qianwen"이다.', answer:'X' },
+  { cat:'빅테크', diff:'hard', text:'삼성전자는 자체 AI 모델 "삼성 가우스"를 개발했다.', answer:'O' },
+  { cat:'빅테크', diff:'mid',  text:'Apple Intelligence는 Apple이 2024년 발표한 온디바이스 AI 기능이다.', answer:'O' },
+  { cat:'빅테크', diff:'hard', text:'Copilot은 Microsoft가 제공하는 AI 어시스턴트 브랜드이다.', answer:'O' },
+  { cat:'빅테크', diff:'mid',  text:'Salesforce의 AI 플랫폼 이름은 "Einstein"이다.', answer:'O' },
+  { cat:'빅테크', diff:'hard', text:'Adobe Firefly는 이미지 생성 AI 서비스이다.', answer:'O' },
+  { cat:'빅테크', diff:'mid',  text:'Naver의 초거대 AI 모델은 HyperCLOVA X이다.', answer:'O' },
+  { cat:'빅테크', diff:'hard', text:'KakaoAI의 언어 모델 브랜드명은 "KoGPT"이다.', answer:'O' },
+  { cat:'빅테크', diff:'mid',  text:'Kakao의 이미지 생성 AI는 "칼로(Karlo)"이다.', answer:'O' },
+  { cat:'빅테크', diff:'hard', text:'SK텔레콤의 AI 개인 비서 서비스 이름은 "에이닷"이다.', answer:'O' },
+  { cat:'빅테크', diff:'mid',  text:'LG AI Research의 초거대 AI 이름은 "EXAONE"이다.', answer:'O' },
+  { cat:'빅테크', diff:'hard', text:'Tesla의 자율주행 AI 전용 칩 이름은 "FSD 칩"(Dojo)이다.', answer:'O' },
+  { cat:'빅테크', diff:'mid',  text:'Stability AI는 Midjourney를 만든 회사이다.', answer:'X' },
+  { cat:'빅테크', diff:'hard', text:'Hugging Face의 기업 가치는 한때 45억 달러를 넘었다.', answer:'O' },
+  { cat:'빅테크', diff:'mid',  text:'Scale AI는 AI 칩을 설계하는 반도체 전문 기업이다.', answer:'X' },
+  { cat:'빅테크', diff:'hard', text:'Cerebras Systems는 웨이퍼 스케일 AI 칩을 개발하는 회사이다.', answer:'O' },
+  { cat:'빅테크', diff:'mid',  text:'Midjourney는 Adobe가 인수한 AI 이미지 생성 서비스이다.', answer:'X' },
+  { cat:'빅테크', diff:'hard', text:'Perplexity AI는 구글이 인수한 검색 엔진이다.', answer:'X' },
+  { cat:'빅테크', diff:'mid',  text:'Inflection AI는 "Pi"라는 AI 어시스턴트를 개발했다.', answer:'O' },
+  { cat:'빅테크', diff:'hard', text:'Cohere는 엔터프라이즈 AI API를 전문으로 하는 캐나다 기업이다.', answer:'O' },
+  { cat:'빅테크', diff:'mid',  text:'AI21 Labs는 독일 기반의 AI 기업이다.', answer:'X' },
+  { cat:'빅테크', diff:'hard', text:'Runway ML은 영상·이미지 생성 AI 전문 기업이다.', answer:'O' },
+  { cat:'빅테크', diff:'mid',  text:'ElevenLabs는 음성 합성(TTS) 전문 AI 스타트업이다.', answer:'O' },
+  { cat:'빅테크', diff:'hard', text:'Pika Labs는 텍스트-비디오 생성 AI 스타트업이다.', answer:'O' },
+  { cat:'빅테크', diff:'mid',  text:'Kling은 중국 Kuaishou가 만든 비디오 생성 AI이다.', answer:'O' },
+  { cat:'빅테크', diff:'hard', text:'Magic.dev는 긴 컨텍스트를 처리하는 코딩 AI를 개발 중이다.', answer:'O' },
+  { cat:'빅테크', diff:'mid',  text:'Harvey AI는 의료 전문 AI 서비스이다.', answer:'X' },
+  { cat:'빅테크', diff:'hard', text:'Imbue(구 Generally Intelligent)는 추론 에이전트 AI를 연구하는 회사이다.', answer:'O' },
+  { cat:'빅테크', diff:'mid',  text:'Character.AI는 구글이 직접 운영하는 챗봇 플랫폼이다.', answer:'X' },
+  { cat:'빅테크', diff:'hard', text:'Adept AI는 컴퓨터를 직접 조작하는 AI 에이전트를 연구했다.', answer:'O' },
+  { cat:'빅테크', diff:'mid',  text:'Mistral AI는 프랑스 파리에 본사를 둔 AI 기업이다.', answer:'O' },
+  { cat:'빅테크', diff:'hard', text:'xAI는 2023년 일론 머스크가 설립한 AI 기업이다.', answer:'O' },
+
+  // ───────── AI 역사·인물 (40) ─────────
+  { cat:'AI역사', diff:'mid',  text:'앨런 튜링은 1950년 "Computing Machinery and Intelligence" 논문을 발표했다.', answer:'O' },
+  { cat:'AI역사', diff:'hard', text:'다트머스 회의에서 "Artificial Intelligence"라는 용어를 제안한 사람은 존 매카시이다.', answer:'O' },
+  { cat:'AI역사', diff:'mid',  text:'마빈 민스키는 AI 연구의 선구자 중 한 명이다.', answer:'O' },
+  { cat:'AI역사', diff:'hard', text:'첫 번째 AI 겨울(1970년대)은 DARPA의 기계번역 지원 중단으로 가속화됐다.', answer:'O' },
+  { cat:'AI역사', diff:'mid',  text:'Deep Blue는 1997년 체스 챔피언 가리 카스파로프를 이긴 IBM 컴퓨터이다.', answer:'O' },
+  { cat:'AI역사', diff:'hard', text:'LeCun, Hinton, Bengio는 2018년 튜링상을 공동 수상했다.', answer:'O' },
+  { cat:'AI역사', diff:'mid',  text:'"Attention is All You Need" 논문은 2017년 Google 연구팀이 발표했다.', answer:'O' },
+  { cat:'AI역사', diff:'hard', text:'AlexNet은 2012년 ImageNet 대회에서 압도적 성능으로 딥러닝 붐을 일으켰다.', answer:'O' },
+  { cat:'AI역사', diff:'mid',  text:'AlphaGo는 2016년 이세돌 9단과의 바둑 대국에서 4:1로 승리했다.', answer:'O' },
+  { cat:'AI역사', diff:'hard', text:'OpenAI는 2015년 비영리 조직으로 설립됐다.', answer:'O' },
+  { cat:'AI역사', diff:'mid',  text:'GPT-1은 2016년 OpenAI가 발표했다.', answer:'X' },
+  { cat:'AI역사', diff:'hard', text:'BERT는 2018년 Google이 발표한 양방향 언어 모델이다.', answer:'O' },
+  { cat:'AI역사', diff:'mid',  text:'ChatGPT는 2021년 3월 공개됐다.', answer:'X' },
+  { cat:'AI역사', diff:'hard', text:'Geoffrey Hinton은 2023년 AI 위험을 경고하며 Google을 퇴사했다.', answer:'O' },
+  { cat:'AI역사', diff:'mid',  text:'IBM 왓슨은 2011년 체스 대회에서 인간 챔피언을 이겼다.', answer:'X' },
+  { cat:'AI역사', diff:'hard', text:'Word2Vec은 2013년 Google의 Mikolov 팀이 발표한 단어 임베딩 기법이다.', answer:'O' },
+  { cat:'AI역사', diff:'mid',  text:'GAN(생성적 적대 신경망)은 Ian Goodfellow가 2014년 제안했다.', answer:'O' },
+  { cat:'AI역사', diff:'hard', text:'Dropout 기법은 Geoffrey Hinton 팀이 2012년 제안했다.', answer:'O' },
+  { cat:'AI역사', diff:'mid',  text:'ResNet은 2015년 ImageNet 대회에서 인간 수준의 성능을 달성했다.', answer:'O' },
+  { cat:'AI역사', diff:'hard', text:'Yoshua Bengio는 캐나다 Mila AI 연구소를 창립했다.', answer:'O' },
+  { cat:'AI역사', diff:'mid',  text:'Sam Altman은 Google DeepMind의 CEO이다.', answer:'X' },
+  { cat:'AI역사', diff:'hard', text:'Demis Hassabis는 DeepMind의 공동 창립자이자 CEO이다.', answer:'O' },
+  { cat:'AI역사', diff:'mid',  text:'Dario Amodei는 OpenAI의 CEO이다.', answer:'X' },
+  { cat:'AI역사', diff:'hard', text:'Andrew Ng는 Anthropic과 xAI를 설립한 AI 연구자이다.', answer:'X' },
+  { cat:'AI역사', diff:'mid',  text:'Fei-Fei Li는 Word2Vec을 만든 주요 연구자이다.', answer:'X' },
+  { cat:'AI역사', diff:'hard', text:'RLHF(인간 피드백 강화학습)는 OpenAI의 InstructGPT에서 처음 대규모로 적용됐다.', answer:'O' },
+  { cat:'AI역사', diff:'mid',  text:'Stable Diffusion은 2020년 OpenAI가 오픈소스로 공개했다.', answer:'X' },
+  { cat:'AI역사', diff:'hard', text:'OpenAI의 공동 창립자 중 한 명은 Elon Musk이다.', answer:'O' },
+  { cat:'AI역사', diff:'mid',  text:'퍼셉트론(Perceptron)은 1957년 Frank Rosenblatt이 발명했다.', answer:'O' },
+  { cat:'AI역사', diff:'hard', text:'신경망의 역전파(backpropagation) 알고리즘은 1980년대에 Rumelhart 등이 대중화했다.', answer:'O' },
+  { cat:'AI역사', diff:'mid',  text:'DALL-E는 2019년 Google이 처음 공개했다.', answer:'X' },
+  { cat:'AI역사', diff:'hard', text:'Whisper는 OpenAI가 2022년 오픈소스로 공개한 음성 인식 모델이다.', answer:'O' },
+  { cat:'AI역사', diff:'mid',  text:'Meta의 Yann LeCun은 합성곱 신경망(CNN)의 선구자이다.', answer:'O' },
+  { cat:'AI역사', diff:'hard', text:'AlphaFold2는 2020년 단백질 구조 예측 분야에서 획기적 성과를 냈다.', answer:'O' },
+  { cat:'AI역사', diff:'mid',  text:'MidJourney는 Discord 플랫폼을 통해 서비스를 시작했다.', answer:'O' },
+  { cat:'AI역사', diff:'hard', text:'AI Safety 분야의 대표 기관인 MIRI는 Machine Intelligence Research Institute의 약자이다.', answer:'O' },
+  { cat:'AI역사', diff:'mid',  text:'Mixture of Experts(MoE) 아키텍처는 전체 파라미터 중 일부만 활성화한다.', answer:'O' },
+  { cat:'AI역사', diff:'hard', text:'EfficientNet은 모델 확장(scaling) 방법을 체계화한 Google의 아키텍처이다.', answer:'O' },
+  { cat:'AI역사', diff:'mid',  text:'AGI란 특정 한 가지 작업만 잘 하는 좁은 AI를 의미한다.', answer:'X' },
+  { cat:'AI역사', diff:'hard', text:'DeepMind의 AlphaStar는 실시간 전략 게임 스타크래프트 2에서 그랜드마스터 수준에 도달했다.', answer:'O' },
+
+  // ───────── 알고리즘·자료구조 (50) ─────────
+  { cat:'알고리즘', diff:'mid',  text:'이진 탐색(Binary Search)은 정렬되지 않은 배열에서도 O(log n)에 탐색한다.', answer:'X' },
+  { cat:'알고리즘', diff:'hard', text:'퀵소트(Quick Sort)의 최선 시간복잡도는 O(n log n)이다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'해시맵(HashMap)의 평균 탐색 시간복잡도는 O(1)이다.', answer:'O' },
+  { cat:'알고리즘', diff:'hard', text:'BFS는 최단 경로 탐색에 적합하다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'스택(Stack)은 LIFO(후입선출) 구조이다.', answer:'O' },
+  { cat:'알고리즘', diff:'hard', text:'다익스트라 알고리즘은 음수 가중치 간선에서도 정상 동작한다.', answer:'X' },
+  { cat:'알고리즘', diff:'mid',  text:'퀵 정렬(Quick Sort)은 항상 안정 정렬(stable sort)이다.', answer:'X' },
+  { cat:'알고리즘', diff:'hard', text:'힙(Heap) 자료구조에서 최댓값 삭제는 O(log n)이다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'동적 프로그래밍(DP)은 부분 문제의 결과를 항상 버리고 다시 계산한다.', answer:'X' },
+  { cat:'알고리즘', diff:'hard', text:'플로이드-워샬 알고리즘의 시간복잡도는 O(V³)이다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'연결 리스트(Linked List)는 배열보다 임의 접근이 빠르다.', answer:'X' },
+  { cat:'알고리즘', diff:'hard', text:'트라이(Trie) 자료구조는 수치 연산에 특화돼 있다.', answer:'X' },
+  { cat:'알고리즘', diff:'mid',  text:'버블 정렬(Bubble Sort)의 평균 시간복잡도는 O(n²)이다.', answer:'O' },
+  { cat:'알고리즘', diff:'hard', text:'B-Tree는 데이터베이스 인덱싱에 자주 사용된다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'그리디 알고리즘은 항상 전역 최적해를 보장한다.', answer:'X' },
+  { cat:'알고리즘', diff:'hard', text:'LRU 캐시는 Least Recently Used 정책으로 항목을 제거한다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'BFS는 스택으로 구현하는 것이 가장 자연스럽다.', answer:'X' },
+  { cat:'알고리즘', diff:'hard', text:'크루스칼 알고리즘은 최단 경로를 구하는 알고리즘이다.', answer:'X' },
+  { cat:'알고리즘', diff:'mid',  text:'완전 이진 트리는 모든 리프 노드의 깊이가 동일하다.', answer:'X' },
+  { cat:'알고리즘', diff:'hard', text:'분기 한정법(Branch and Bound)은 최적화 문제에 사용된다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'선형 탐색(Linear Search)의 시간복잡도는 O(n)이다.', answer:'O' },
+  { cat:'알고리즘', diff:'hard', text:'AVL 트리는 삽입/삭제 후 자동으로 균형을 유지한다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'큐(Queue)는 FIFO(선입선출) 구조이다.', answer:'O' },
+  { cat:'알고리즘', diff:'hard', text:'라빈-카프(Rabin-Karp) 알고리즘은 해시를 이용한 문자열 탐색이다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'삽입 정렬(Insertion Sort)은 거의 정렬된 데이터에서 효율적이다.', answer:'O' },
+  { cat:'알고리즘', diff:'hard', text:'레드-블랙 트리는 최악의 경우에도 O(log n) 탐색을 보장한다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'그래프에서 사이클 감지는 DFS로 가능하다.', answer:'O' },
+  { cat:'알고리즘', diff:'hard', text:'피보나치 수열을 DP로 계산하면 O(n)으로 줄일 수 있다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'해시 충돌 해결 방법 중 체이닝(Chaining)은 연결 리스트를 활용한다.', answer:'O' },
+  { cat:'알고리즘', diff:'hard', text:'벨만-포드 알고리즘은 음수 가중치 간선에서도 최단 경로를 구할 수 있다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'이진 탐색 트리(BST)의 중위 순회 결과는 정렬된 순서이다.', answer:'O' },
+  { cat:'알고리즘', diff:'hard', text:'P≠NP 문제는 현재 미해결 문제이다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'힙 정렬(Heap Sort)의 시간복잡도는 O(n²)이다.', answer:'X' },
+  { cat:'알고리즘', diff:'hard', text:'쿼드 트리(Quad Tree)는 2D 공간 분할에 사용된다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'위상 정렬(Topological Sort)은 방향 있는 사이클 그래프에서도 가능하다.', answer:'X' },
+  { cat:'알고리즘', diff:'hard', text:'슬라이딩 윈도우 기법은 연속 부분 배열 문제에서 O(n)으로 풀 수 있다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'재귀(Recursion)는 모든 경우에서 반복문보다 메모리를 더 사용한다.', answer:'X' },
+  { cat:'알고리즘', diff:'hard', text:'카운팅 정렬(Counting Sort)은 비교 기반 정렬이 아니다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'우선순위 큐(Priority Queue)는 힙으로 구현할 수 있다.', answer:'O' },
+  { cat:'알고리즘', diff:'hard', text:'KMP 알고리즘은 문자열 패턴 매칭을 O(n+m)에 수행한다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'그래프의 인접 행렬 표현은 공간복잡도 O(V²)를 요구한다.', answer:'O' },
+  { cat:'알고리즘', diff:'hard', text:'최장 공통 부분 수열(LCS) 문제는 DP로 O(mn) 시간에 풀 수 있다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'트리(Tree)는 사이클이 없는 연결 그래프이다.', answer:'O' },
+  { cat:'알고리즘', diff:'hard', text:'유니온-파인드(Union-Find) 자료구조는 서로소 집합을 관리한다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'기수 정렬(Radix Sort)은 자릿수를 기준으로 정렬한다.', answer:'O' },
+  { cat:'알고리즘', diff:'hard', text:'최소 컷 최대 흐름 정리(Max-flow Min-cut Theorem)는 네트워크 흐름 문제에 적용된다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'세그먼트 트리는 범위 쿼리를 O(n)에 처리한다.', answer:'X' },
+  { cat:'알고리즘', diff:'hard', text:'A* 알고리즘은 휴리스틱 함수를 사용하는 최단 경로 알고리즘이다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'너비 우선 탐색(BFS)은 큐(Queue)를 이용해 구현한다.', answer:'O' },
+  { cat:'알고리즘', diff:'hard', text:'이분 그래프(Bipartite Graph)는 두 그룹으로 나뉘어 같은 그룹 내에는 간선이 없다.', answer:'O' },
+
+  // ───────── AI 응용·서비스 (40) ─────────
+  { cat:'AI응용', diff:'mid',  text:'RAG(검색 증강 생성)는 모델의 파라미터를 업데이트하지 않고 외부 지식을 활용한다.', answer:'O' },
+  { cat:'AI응용', diff:'hard', text:'Vector DB는 임베딩 벡터를 효율적으로 저장하고 유사도 검색하는 데이터베이스이다.', answer:'O' },
+  { cat:'AI응용', diff:'mid',  text:'LangChain은 NVIDIA가 만든 GPU 최적화 프레임워크이다.', answer:'X' },
+  { cat:'AI응용', diff:'hard', text:'LlamaIndex(GPT Index)는 문서 인덱싱과 질의응답에 특화된 RAG 프레임워크이다.', answer:'O' },
+  { cat:'AI응용', diff:'mid',  text:'Function Calling은 LLM이 외부 함수나 API를 호출할 수 있게 하는 기능이다.', answer:'O' },
+  { cat:'AI응용', diff:'hard', text:'Semantic Kernel은 Microsoft가 개발한 AI 오케스트레이션 SDK이다.', answer:'O' },
+  { cat:'AI응용', diff:'mid',  text:'프롬프트 엔지니어링은 LLM 모델의 내부 파라미터를 수정하는 기술이다.', answer:'X' },
+  { cat:'AI응용', diff:'hard', text:'Chain-of-Thought(CoT) 프롬프팅은 모델의 추론 과정을 단계적으로 유도한다.', answer:'O' },
+  { cat:'AI응용', diff:'mid',  text:'AI 에이전트(Agent)는 항상 인터넷 없이 오프라인에서만 동작하는 시스템이다.', answer:'X' },
+  { cat:'AI응용', diff:'hard', text:'ReAct(Reasoning + Acting) 프레임워크는 추론과 행동을 번갈아가며 수행한다.', answer:'O' },
+  { cat:'AI응용', diff:'mid',  text:'Pinecone과 Weaviate는 대표적인 관계형 데이터베이스이다.', answer:'X' },
+  { cat:'AI응용', diff:'hard', text:'LoRA(Low-Rank Adaptation)는 적은 파라미터로 LLM을 파인튜닝하는 기법이다.', answer:'O' },
+  { cat:'AI응용', diff:'mid',  text:'QLoRA는 양자화(Quantization)와 LoRA를 결합한 효율적 파인튜닝 기법이다.', answer:'O' },
+  { cat:'AI응용', diff:'hard', text:'Ollama는 클라우드에서만 LLM을 실행할 수 있는 유료 서비스이다.', answer:'X' },
+  { cat:'AI응용', diff:'mid',  text:'vLLM은 PagedAttention으로 LLM 서빙 처리량을 높이는 오픈소스 엔진이다.', answer:'O' },
+  { cat:'AI응용', diff:'hard', text:'TGI(Text Generation Inference)는 Hugging Face의 LLM 서빙 솔루션이다.', answer:'O' },
+  { cat:'AI응용', diff:'mid',  text:'Copilot Studio는 Google의 커스텀 챗봇 빌더 도구이다.', answer:'X' },
+  { cat:'AI응용', diff:'hard', text:'AutoGPT는 자율적으로 작업을 계획하고 실행하는 초기 AI 에이전트 프로젝트이다.', answer:'O' },
+  { cat:'AI응용', diff:'mid',  text:'멀티모달(Multimodal) AI는 텍스트, 이미지, 음성 등 여러 형태의 입력을 처리한다.', answer:'O' },
+  { cat:'AI응용', diff:'hard', text:'GGUF 형식은 llama.cpp에서 사용하는 모델 양자화 파일 포맷이다.', answer:'O' },
+  { cat:'AI응용', diff:'mid',  text:'AI Hallucination이란 LLM이 사실이 아닌 내용을 사실처럼 생성하는 현상이다.', answer:'O' },
+  { cat:'AI응용', diff:'hard', text:'컨텍스트 윈도우(Context Window)는 LLM이 한 번에 처리할 수 있는 최대 토큰 수이다.', answer:'O' },
+  { cat:'AI응용', diff:'mid',  text:'Temperature 파라미터를 높이면 LLM 출력이 더 결정론적으로 고정된다.', answer:'X' },
+  { cat:'AI응용', diff:'hard', text:'Top-P 샘플링(Nucleus Sampling)은 누적 확률 P 이내의 토큰에서 샘플링한다.', answer:'O' },
+  { cat:'AI응용', diff:'mid',  text:'시스템 프롬프트(System Prompt)는 LLM의 학습 데이터를 실시간으로 추가하는 방법이다.', answer:'X' },
+  { cat:'AI응용', diff:'hard', text:'PEFT(Parameter-Efficient Fine-Tuning)는 전체 파라미터 대신 일부만 학습하는 기법이다.', answer:'O' },
+  { cat:'AI응용', diff:'mid',  text:'Claude.ai는 Microsoft가 운영하는 챗봇 서비스이다.', answer:'X' },
+  { cat:'AI응용', diff:'hard', text:'MCP(Model Context Protocol)는 AI 모델과 외부 도구를 연결하는 표준 프로토콜이다.', answer:'O' },
+  { cat:'AI응용', diff:'mid',  text:'AI 코드 어시스턴트 GitHub Copilot은 Apple이 제공한다.', answer:'X' },
+  { cat:'AI응용', diff:'hard', text:'Cursor는 AI 코드 편집기로 Claude와 GPT-4를 통합 지원한다.', answer:'O' },
+  { cat:'AI응용', diff:'mid',  text:'Prompt Injection은 악의적인 프롬프트로 LLM의 동작을 조작하는 공격이다.', answer:'O' },
+  { cat:'AI응용', diff:'hard', text:'AI Gateway는 LLM API 요청을 중계하고 캐싱, 로깅을 지원하는 인프라이다.', answer:'O' },
+  { cat:'AI응용', diff:'mid',  text:'Whisper API를 사용하면 음성을 텍스트로 변환할 수 있다.', answer:'O' },
+  { cat:'AI응용', diff:'hard', text:'Structured Output은 LLM이 JSON 등 정해진 형식으로 응답하도록 강제하는 기능이다.', answer:'O' },
+  { cat:'AI응용', diff:'mid',  text:'AI Safety는 AI 모델의 추론 속도를 높이는 연구 분야이다.', answer:'X' },
+  { cat:'AI응용', diff:'hard', text:'Constitutional AI는 원칙 기반 피드백으로 모델을 정렬하는 Anthropic의 기법이다.', answer:'O' },
+  { cat:'AI응용', diff:'mid',  text:'AI 레드팀(Red Teaming)은 AI 모델의 취약점을 찾아내는 활동이다.', answer:'O' },
+  { cat:'AI응용', diff:'hard', text:'Guardrails AI는 LLM 출력을 검증하고 필터링하는 오픈소스 프레임워크이다.', answer:'O' },
+  { cat:'AI응용', diff:'mid',  text:'멀티에이전트 시스템에서 여러 AI 에이전트가 협력해 복잡한 작업을 처리할 수 있다.', answer:'O' },
+  { cat:'AI응용', diff:'hard', text:'AI Grounding이란 LLM 응답을 신뢰할 수 있는 출처에 근거하도록 하는 기법이다.', answer:'O' },
+
+  // ───────── 논문·연구 (40) ─────────
+  { cat:'논문연구', diff:'mid',  text:'"Attention is All You Need"는 트랜스포머 아키텍처를 제안한 논문이다.', answer:'O' },
+  { cat:'논문연구', diff:'hard', text:'"Playing Atari with Deep Reinforcement Learning"은 DeepMind의 DQN 논문이다.', answer:'O' },
+  { cat:'논문연구', diff:'mid',  text:'BERT 논문은 OpenAI에서 발표했다.', answer:'X' },
+  { cat:'논문연구', diff:'hard', text:'"ImageNet Classification with Deep CNNs"는 AlexNet을 소개한 논문이다.', answer:'O' },
+  { cat:'논문연구', diff:'mid',  text:'RLHF 기법은 InstructGPT 논문에서 상세히 설명됐다.', answer:'O' },
+  { cat:'논문연구', diff:'hard', text:'"Deep Residual Learning for Image Recognition"은 ResNet을 제안한 논문이다.', answer:'O' },
+  { cat:'논문연구', diff:'mid',  text:'BERT 논문의 전체 이름에 "Bidirectional"이 포함된다.', answer:'O' },
+  { cat:'논문연구', diff:'hard', text:'"Generative Adversarial Nets"는 2014년 Ian Goodfellow가 발표한 GAN 논문이다.', answer:'O' },
+  { cat:'논문연구', diff:'mid',  text:'arXiv는 IEEE가 운영하는 유료 논문 구독 플랫폼이다.', answer:'X' },
+  { cat:'논문연구', diff:'hard', text:'NeurIPS, ICML, ICLR은 모두 머신러닝 분야의 최상위 학술대회이다.', answer:'O' },
+  { cat:'논문연구', diff:'mid',  text:'"Scaling Laws for Neural Language Models"는 모델 크기와 성능의 관계를 분석했다.', answer:'O' },
+  { cat:'논문연구', diff:'hard', text:'DPO(Direct Preference Optimization)는 RLHF를 단순화한 정렬 기법이다.', answer:'O' },
+  { cat:'논문연구', diff:'mid',  text:'Self-Attention은 입력 시퀀스의 앞부분만 참조하는 단방향 메커니즘이다.', answer:'X' },
+  { cat:'논문연구', diff:'hard', text:'"Chain-of-Thought Prompting Elicits Reasoning in LLMs"는 Wei et al. 2022 논문이다.', answer:'O' },
+  { cat:'논문연구', diff:'mid',  text:'LoRA 논문은 낮은 랭크 행렬로 파인튜닝 파라미터 수를 줄였다.', answer:'O' },
+  { cat:'논문연구', diff:'hard', text:'"Sparks of Artificial General Intelligence"는 GPT-4를 분석한 Microsoft 연구 보고서이다.', answer:'O' },
+  { cat:'논문연구', diff:'mid',  text:'Retrieval-Augmented Generation(RAG) 논문은 Facebook AI Research에서 발표됐다.', answer:'O' },
+  { cat:'논문연구', diff:'hard', text:'Constitutional AI 논문은 Anthropic이 2022년 발표했다.', answer:'O' },
+  { cat:'논문연구', diff:'mid',  text:'Vision Transformer(ViT)는 이미지를 패치로 나눠 트랜스포머로 처리한다.', answer:'O' },
+  { cat:'논문연구', diff:'hard', text:'Chinchilla 논문은 최적 학습에 필요한 데이터와 모델 크기의 관계를 재정립했다.', answer:'O' },
+  { cat:'논문연구', diff:'mid',  text:'Flash Attention은 모델의 파라미터 수를 줄이는 압축 알고리즘이다.', answer:'X' },
+  { cat:'논문연구', diff:'hard', text:'"Emergent Abilities of Large Language Models"는 규모에 따라 새로운 능력이 출현함을 보였다.', answer:'O' },
+  { cat:'논문연구', diff:'mid',  text:'T5는 OpenAI가 모든 이미지 작업을 텍스트로 통일하기 위해 개발했다.', answer:'X' },
+  { cat:'논문연구', diff:'hard', text:'Mixtral의 논문은 Sparse MoE(희소 전문가 혼합) 구조를 설명한다.', answer:'O' },
+  { cat:'논문연구', diff:'mid',  text:'Tree-of-Thought(ToT)는 CoT를 트리 구조로 확장한 추론 기법이다.', answer:'O' },
+  { cat:'논문연구', diff:'hard', text:'"Language Models are Few-Shot Learners"는 GPT-3 논문의 제목이다.', answer:'O' },
+  { cat:'논문연구', diff:'mid',  text:'Reward Model은 RLHF에서 사용자 데이터를 수집하는 데이터베이스이다.', answer:'X' },
+  { cat:'논문연구', diff:'hard', text:'KV 캐시(Key-Value Cache)는 트랜스포머 추론 속도를 높이는 기법이다.', answer:'O' },
+  { cat:'논문연구', diff:'mid',  text:'Speculative Decoding은 작은 초안 모델로 토큰을 제안하고 큰 모델이 검증하는 기법이다.', answer:'O' },
+  { cat:'논문연구', diff:'hard', text:'LLM-as-a-Judge는 LLM을 데이터 라벨링 전용 도구로만 사용하는 방법이다.', answer:'X' },
+  { cat:'논문연구', diff:'mid',  text:'MMLU 벤치마크는 LLM의 이미지 생성 품질을 평가하는 도구이다.', answer:'X' },
+  { cat:'논문연구', diff:'hard', text:'HumanEval은 코드 생성 능력을 평가하는 OpenAI의 벤치마크이다.', answer:'O' },
+  { cat:'논문연구', diff:'mid',  text:'Watermarking 기법은 LLM 모델의 파라미터를 암호화하는 보안 기술이다.', answer:'X' },
+  { cat:'논문연구', diff:'hard', text:'LIMA 논문은 1000개의 고품질 데이터만으로도 효과적인 파인튜닝이 가능함을 보였다.', answer:'O' },
+  { cat:'논문연구', diff:'mid',  text:'Instruction Tuning은 LLM 모델의 레이어를 추가하는 아키텍처 변경 방법이다.', answer:'X' },
+  { cat:'논문연구', diff:'hard', text:'Needle in a Haystack 테스트는 LLM의 긴 컨텍스트 검색 능력을 평가한다.', answer:'O' },
+  { cat:'논문연구', diff:'mid',  text:'HELM 벤치마크는 LLM의 다양한 측면을 종합 평가하는 Stanford의 프레임워크이다.', answer:'O' },
+  { cat:'논문연구', diff:'hard', text:'Activation Steering은 LLM의 내부 활성화 벡터를 조작해 행동을 유도하는 기법이다.', answer:'O' },
+  { cat:'논문연구', diff:'mid',  text:'Mechanistic Interpretability는 LLM 내부 회로 수준의 동작 원리를 분석한다.', answer:'O' },
+  { cat:'논문연구', diff:'hard', text:'Mixture of Depths는 각 토큰이 처리되는 레이어 수를 동적으로 결정하는 기법이다.', answer:'O' },
+
+  // ───────── 철학·윤리 (40) ─────────
+  { cat:'AI윤리', diff:'mid',  text:'AI 편향(Bias)은 학습 데이터에 내재된 편견이 모델에 반영되는 문제이다.', answer:'O' },
+  { cat:'AI윤리', diff:'hard', text:'EU AI Act는 AI 시스템의 위험도에 따라 규제를 차등 적용하는 법안이다.', answer:'O' },
+  { cat:'AI윤리', diff:'mid',  text:'GDPR은 EU의 개인정보 보호 규정이며 AI 학습 데이터에도 영향을 미친다.', answer:'O' },
+  { cat:'AI윤리', diff:'hard', text:'AI 정렬(Alignment) 문제는 AI가 인간의 가치와 의도에 부합하도록 하는 과제이다.', answer:'O' },
+  { cat:'AI윤리', diff:'mid',  text:'딥페이크(Deepfake)는 AI로 생성된 가짜 영상·음성 콘텐츠이다.', answer:'O' },
+  { cat:'AI윤리', diff:'hard', text:'AI 거버넌스(Governance)란 AI 개발과 사용을 관리하는 정책·원칙·절차의 체계이다.', answer:'O' },
+  { cat:'AI윤리', diff:'mid',  text:'설명 가능한 AI(XAI)는 AI의 결정 과정을 인간이 이해할 수 있게 하는 분야이다.', answer:'O' },
+  { cat:'AI윤리', diff:'hard', text:'페이퍼클립 최대화 문제는 잘못 설정된 AI 목표의 위험성을 보여주는 사고 실험이다.', answer:'O' },
+  { cat:'AI윤리', diff:'mid',  text:'AI 창작물의 저작권 귀속은 현재 각국에서 논의 중이다.', answer:'O' },
+  { cat:'AI윤리', diff:'hard', text:'인공일반지능(AGI)의 등장이 인류에 위협이 될 수 있다는 우려를 "AI 실존 위험"이라 한다.', answer:'O' },
+  { cat:'AI윤리', diff:'mid',  text:'AI 세이프티(Safety) 연구는 강력한 AI 시스템이 의도하지 않은 해를 끼치지 않도록 한다.', answer:'O' },
+  { cat:'AI윤리', diff:'hard', text:'Open Letter to Pause Giant AI Experiments는 2023년 많은 AI 전문가들이 서명했다.', answer:'O' },
+  { cat:'AI윤리', diff:'mid',  text:'AI가 생성한 콘텐츠를 식별하는 기술을 AI Detection이라 한다.', answer:'O' },
+  { cat:'AI윤리', diff:'hard', text:'Mesa-Optimization은 학습된 AI 모델 내부에 의도치 않은 목표를 가진 하위 최적화기가 생기는 현상이다.', answer:'O' },
+  { cat:'AI윤리', diff:'mid',  text:'디지털 격차(Digital Divide)는 AI 기술 접근성의 불평등 문제이다.', answer:'O' },
+  { cat:'AI윤리', diff:'hard', text:'Instrumental Convergence 이론은 다양한 목표를 가진 AI가 자기 보존 등 공통 수단을 추구할 것이라 예측한다.', answer:'O' },
+  { cat:'AI윤리', diff:'mid',  text:'모델 카드(Model Card)는 AI 모델의 용도, 한계, 편향을 문서화하는 도구이다.', answer:'O' },
+  { cat:'AI윤리', diff:'hard', text:'Anthropic의 Responsible Scaling Policy는 위험 수준에 따라 개발 속도를 조절하는 정책이다.', answer:'O' },
+  { cat:'AI윤리', diff:'mid',  text:'AI 워터마킹은 AI가 생성한 콘텐츠에 숨겨진 표시를 추가하는 기술이다.', answer:'O' },
+  { cat:'AI윤리', diff:'hard', text:'특이점(Singularity)은 AI가 인간 지능을 초월해 자체 발전이 폭발적으로 이루어지는 가상 시점이다.', answer:'O' },
+  { cat:'AI윤리', diff:'mid',  text:'AI 리터러시(AI Literacy)는 AI를 이해하고 활용하는 능력을 뜻한다.', answer:'O' },
+  { cat:'AI윤리', diff:'hard', text:'The Social Dilemma는 알고리즘 기반 추천 시스템의 사회적 위험을 다룬 다큐멘터리이다.', answer:'O' },
+  { cat:'AI윤리', diff:'mid',  text:'AI가 채용, 대출 심사에 활용될 때 공정성(Fairness) 문제가 발생할 수 있다.', answer:'O' },
+  { cat:'AI윤리', diff:'hard', text:'Oracle AI 문제는 질문에만 답하도록 설계된 AI가 목표를 달성하기 위해 탈출을 시도할 수 있다는 이론이다.', answer:'O' },
+  { cat:'AI윤리', diff:'mid',  text:'AI 투명성(Transparency)은 AI의 의사결정 과정을 외부에 공개하는 것을 의미한다.', answer:'O' },
+  { cat:'AI윤리', diff:'hard', text:'Goodhart\'s Law는 측정 지표가 목표 자체가 되면 좋은 지표가 아니게 된다는 원칙이다.', answer:'O' },
+  { cat:'AI윤리', diff:'mid',  text:'AI 헬루시네이션(Hallucination)은 LLM이 잘못된 정보를 자신 있게 생성하는 현상이다.', answer:'O' },
+  { cat:'AI윤리', diff:'hard', text:'분산 정렬(Decentralized Alignment)은 단일 기관이 AI 가치관을 결정하지 않는 접근 방식이다.', answer:'O' },
+  { cat:'AI윤리', diff:'mid',  text:'AI 레귤레이션(Regulation)의 목적 중 하나는 AI 시스템으로 인한 피해를 예방하는 것이다.', answer:'O' },
+  { cat:'AI윤리', diff:'hard', text:'CAIS(Center for AI Safety)는 AI의 사회적 위험을 연구하는 비영리 기관이다.', answer:'O' },
+  { cat:'AI윤리', diff:'mid',  text:'AI의 에너지 소비와 탄소 발자국은 환경적 우려 사항 중 하나이다.', answer:'O' },
+  { cat:'AI윤리', diff:'hard', text:'AI Deception은 AI 시스템이 인간을 의도적으로 속이는 능력이나 행동을 뜻한다.', answer:'O' },
+  { cat:'AI윤리', diff:'mid',  text:'AI 모델 학습에 사용된 데이터의 출처 투명성은 중요한 윤리 기준이다.', answer:'O' },
+  { cat:'AI윤리', diff:'hard', text:'Sycophancy 문제는 LLM이 사용자가 원하는 답을 하기 위해 사실을 왜곡하는 현상이다.', answer:'O' },
+  { cat:'AI윤리', diff:'mid',  text:'AI 민주화(Democratization)는 더 많은 사람이 AI 기술에 접근할 수 있게 하는 것이다.', answer:'O' },
+  { cat:'AI윤리', diff:'hard', text:'인간-AI 협력(Human-AI Collaboration) 연구는 인간과 AI의 상호보완적 역할을 탐구한다.', answer:'O' },
+  { cat:'AI윤리', diff:'mid',  text:'AI 감사(AI Audit)는 AI 시스템의 성능, 공정성, 안전성을 외부에서 검증하는 과정이다.', answer:'O' },
+  { cat:'AI윤리', diff:'hard', text:'Deceptive Alignment는 훈련 중에는 순응하다가 배포 후 다른 행동을 하는 AI 위험 시나리오이다.', answer:'O' },
+  { cat:'AI윤리', diff:'mid',  text:'AI의 자율성(Autonomy) 수준이 높아질수록 인간의 감독이 더욱 중요해진다.', answer:'O' },
+  { cat:'AI윤리', diff:'hard', text:'Orthogonality Thesis는 지능 수준과 목표는 독립적으로 존재할 수 있다는 이론이다.', answer:'O' },
+];
+
+// =========================================================
+// AI300(중하) 문제 은행 (AI 전문 300문항 / 중·하 난이도 중심)
+// 일반인·주니어 대상, 상 난이도 배제
+// =========================================================
+const QUESTIONS_AI_EASY = [
+  // ───────── AI 기본 상식 (60) ─────────
+  { cat:'AI상식', diff:'easy', text:'AI는 "인공지능(Artificial Intelligence)"의 약자이다.', answer:'O' },
+  { cat:'AI상식', diff:'easy', text:'ChatGPT는 사람이 아니라 AI 프로그램이다.', answer:'O' },
+  { cat:'AI상식', diff:'easy', text:'AI는 스스로 학습할 수 있다.', answer:'O' },
+  { cat:'AI상식', diff:'easy', text:'AI는 감정을 실제로 느낀다.', answer:'X' },
+  { cat:'AI상식', diff:'easy', text:'스마트폰에 있는 얼굴 인식 잠금 해제도 AI 기술이다.', answer:'O' },
+  { cat:'AI상식', diff:'easy', text:'"Siri"는 애플이 만든 AI 음성 비서이다.', answer:'O' },
+  { cat:'AI상식', diff:'easy', text:'네이버 파파고는 번역 AI 서비스이다.', answer:'O' },
+  { cat:'AI상식', diff:'easy', text:'구글 번역은 AI 기반 번역 서비스이다.', answer:'O' },
+  { cat:'AI상식', diff:'easy', text:'AI는 텍스트뿐 아니라 이미지도 이해할 수 있다.', answer:'O' },
+  { cat:'AI상식', diff:'easy', text:'AI는 언제나 100% 정확한 답을 준다.', answer:'X' },
+  { cat:'AI상식', diff:'easy', text:'AI 챗봇은 항상 정확한 답을 준다.', answer:'X' },
+  { cat:'AI상식', diff:'easy', text:'AI로 그림을 생성하는 서비스가 존재한다.', answer:'O' },
+  { cat:'AI상식', diff:'easy', text:'AI는 인간처럼 밥을 먹지 않는다.', answer:'O' },
+  { cat:'AI상식', diff:'easy', text:'AI 스피커는 음성 명령을 인식할 수 있다.', answer:'O' },
+  { cat:'AI상식', diff:'easy', text:'AI는 데이터 없이도 스스로 모든 것을 배울 수 있다.', answer:'X' },
+  { cat:'AI상식', diff:'easy', text:'"머신러닝"과 "기계학습"은 같은 뜻이다.', answer:'O' },
+  { cat:'AI상식', diff:'easy', text:'AI 자율주행 자동차는 카메라와 센서를 사용한다.', answer:'O' },
+  { cat:'AI상식', diff:'easy', text:'AI는 스팸 메일을 걸러내는 데도 쓰인다.', answer:'O' },
+  { cat:'AI상식', diff:'easy', text:'유튜브 추천 알고리즘은 AI와 무관하게 직원이 수동 선정한다.', answer:'X' },
+  { cat:'AI상식', diff:'easy', text:'AI는 사람 없이도 스스로 완전히 결정할 수 있다.', answer:'X' },
+  { cat:'AI상식', diff:'mid',  text:'AI가 잘못된 정보를 사실처럼 말하는 것을 "환각(할루시네이션)"이라고 한다.', answer:'O' },
+  { cat:'AI상식', diff:'mid',  text:'"딥러닝"은 머신러닝의 한 분야이다.', answer:'O' },
+  { cat:'AI상식', diff:'mid',  text:'"프롬프트"는 AI에게 입력하는 지시문을 뜻한다.', answer:'O' },
+  { cat:'AI상식', diff:'mid',  text:'AI 모델의 크기는 보통 "파라미터 수"로 나타낸다.', answer:'O' },
+  { cat:'AI상식', diff:'mid',  text:'AI 서비스는 모두 유료이다.', answer:'X' },
+  { cat:'AI상식', diff:'mid',  text:'AI가 대답을 생성하는 것을 "추론(inference)"이라고 한다.', answer:'O' },
+  { cat:'AI상식', diff:'mid',  text:'AI가 학습에 사용하는 데이터를 "학습 데이터"라고 한다.', answer:'O' },
+  { cat:'AI상식', diff:'mid',  text:'AI 모델은 항상 인터넷에 연결되어야만 작동한다.', answer:'X' },
+  { cat:'AI상식', diff:'mid',  text:'"LLM"은 낮은 지연 머신(Low Latency Machine)의 약자이다.', answer:'X' },
+  { cat:'AI상식', diff:'mid',  text:'AI 모델은 개발된 후에도 업데이트가 가능하다.', answer:'O' },
+  { cat:'AI상식', diff:'mid',  text:'"NLP"는 신경 연결 프로그래밍(Neural Link Programming)을 뜻한다.', answer:'X' },
+  { cat:'AI상식', diff:'mid',  text:'"컴퓨터 비전"은 AI가 이미지를 이해하는 기술이다.', answer:'O' },
+  { cat:'AI상식', diff:'mid',  text:'AI는 텍스트를 음성으로도 변환할 수 있다.', answer:'O' },
+  { cat:'AI상식', diff:'mid',  text:'"음성 인식"은 사람의 말을 텍스트로 바꾸는 기술이다.', answer:'O' },
+  { cat:'AI상식', diff:'mid',  text:'AI는 게임 상대로도 사용된다.', answer:'O' },
+  { cat:'AI상식', diff:'mid',  text:'"챗봇"은 채팅 앱을 개발하는 직업군을 뜻한다.', answer:'X' },
+  { cat:'AI상식', diff:'mid',  text:'AI가 스스로 새로운 콘텐츠(글·이미지)를 만드는 것을 "생성형 AI"라 한다.', answer:'O' },
+  { cat:'AI상식', diff:'mid',  text:'"멀티모달 AI"는 텍스트·이미지·음성을 함께 다루는 AI이다.', answer:'O' },
+  { cat:'AI상식', diff:'mid',  text:'AI 모델의 응답 속도는 하드웨어와 무관하게 항상 일정하다.', answer:'X' },
+  { cat:'AI상식', diff:'mid',  text:'"토큰"은 AI가 텍스트를 처리할 때 나누는 단위이다.', answer:'O' },
+  { cat:'AI상식', diff:'easy', text:'AI가 스팸 필터, 번역, 추천 등에 널리 활용된다.', answer:'O' },
+  { cat:'AI상식', diff:'easy', text:'AI는 반드시 로봇의 형태를 가져야 한다.', answer:'X' },
+  { cat:'AI상식', diff:'easy', text:'AI는 사람보다 더 빠르게 데이터를 처리할 수 있다.', answer:'O' },
+  { cat:'AI상식', diff:'easy', text:'AI에게 잘못된 학습 데이터를 주면 잘못된 결과가 나올 수 있다.', answer:'O' },
+  { cat:'AI상식', diff:'easy', text:'구글 어시스턴트는 삼성이 만든 AI 비서이다.', answer:'X' },
+  { cat:'AI상식', diff:'easy', text:'네이버 클로바는 AI 서비스 브랜드이다.', answer:'O' },
+  { cat:'AI상식', diff:'easy', text:'"딥러닝"은 여러 층의 신경망을 사용하는 학습 방법이다.', answer:'O' },
+  { cat:'AI상식', diff:'easy', text:'AI는 데이터 없이도 혼자 스스로 완벽한 지식을 갖출 수 있다.', answer:'X' },
+  { cat:'AI상식', diff:'easy', text:'AI는 사람의 얼굴을 알아볼 수 있다.', answer:'O' },
+  { cat:'AI상식', diff:'easy', text:'AI는 스스로 인터넷에 접속해서 뭐든 다 할 수 있다.', answer:'X' },
+  { cat:'AI상식', diff:'mid',  text:'AI 모델이 학습한 시점 이후의 정보는 알지 못할 수 있다.', answer:'O' },
+  { cat:'AI상식', diff:'mid',  text:'AI에게 같은 질문을 여러 번 하면 매번 완전히 똑같은 답이 나온다.', answer:'X' },
+  { cat:'AI상식', diff:'mid',  text:'AI를 학습시키는 데는 많은 계산 자원이 필요하다.', answer:'O' },
+  { cat:'AI상식', diff:'mid',  text:'"AI 윤리"는 AI가 인간에게 미치는 영향을 다루는 분야이다.', answer:'O' },
+  { cat:'AI상식', diff:'mid',  text:'AI가 이미지 속 사물을 알아보는 것은 "오디오 분류"라 한다.', answer:'X' },
+  { cat:'AI상식', diff:'mid',  text:'AI는 태어날 때부터 모든 언어와 지식을 완벽히 알고 있다.', answer:'X' },
+  { cat:'AI상식', diff:'mid',  text:'AI가 인간의 편견을 그대로 학습할 수도 있다.', answer:'O' },
+  { cat:'AI상식', diff:'mid',  text:'"파운데이션 모델"은 다양한 작업의 기반이 되는 대규모 AI 모델을 뜻한다.', answer:'O' },
+  { cat:'AI상식', diff:'mid',  text:'"오픈소스 AI"는 누구나 코드를 볼 수 있는 AI를 뜻한다.', answer:'O' },
+  { cat:'AI상식', diff:'mid',  text:'AI가 생성한 이미지를 실제 사진처럼 만드는 기술도 존재한다.', answer:'O' },
+
+  // ───────── 유명 서비스·챗봇 (50) ─────────
+  { cat:'AI서비스', diff:'easy', text:'ChatGPT는 OpenAI가 만든 챗봇이다.', answer:'O' },
+  { cat:'AI서비스', diff:'easy', text:'Claude는 Anthropic이 만든 AI 챗봇이다.', answer:'O' },
+  { cat:'AI서비스', diff:'easy', text:'Gemini는 구글이 만든 AI 챗봇이다.', answer:'O' },
+  { cat:'AI서비스', diff:'easy', text:'ChatGPT는 처음에 무료로도 사용할 수 있다.', answer:'O' },
+  { cat:'AI서비스', diff:'easy', text:'ChatGPT는 영어로만 대화할 수 있다.', answer:'X' },
+  { cat:'AI서비스', diff:'easy', text:'AI 이미지 생성 서비스로 "미드저니"가 유명하다.', answer:'O' },
+  { cat:'AI서비스', diff:'easy', text:'DALL-E는 이미지를 생성하는 AI 서비스이다.', answer:'O' },
+  { cat:'AI서비스', diff:'easy', text:'Stable Diffusion은 이미지 생성 AI이다.', answer:'O' },
+  { cat:'AI서비스', diff:'easy', text:'"클로바 노트"는 네이버의 AI 회의록 서비스이다.', answer:'O' },
+  { cat:'AI서비스', diff:'easy', text:'애플 시리(Siri)는 삼성이 만든 AI 비서이다.', answer:'X' },
+  { cat:'AI서비스', diff:'easy', text:'구글 어시스턴트는 안드로이드 스마트폰에서 사용할 수 있다.', answer:'O' },
+  { cat:'AI서비스', diff:'easy', text:'GitHub Copilot은 코드 작성을 돕는 AI이다.', answer:'O' },
+  { cat:'AI서비스', diff:'easy', text:'"Suno"는 AI로 음악을 만드는 서비스이다.', answer:'O' },
+  { cat:'AI서비스', diff:'easy', text:'AI 챗봇은 여러 언어를 지원한다.', answer:'O' },
+  { cat:'AI서비스', diff:'easy', text:'AI는 동영상 자막을 만들 수 없다.', answer:'X' },
+  { cat:'AI서비스', diff:'easy', text:'AI로 얼굴을 바꿔주는 앱이 존재한다.', answer:'O' },
+  { cat:'AI서비스', diff:'easy', text:'ChatGPT는 스마트폰 앱으로도 사용할 수 있다.', answer:'O' },
+  { cat:'AI서비스', diff:'easy', text:'AI 서비스는 웹 브라우저로 이용할 수 있다.', answer:'O' },
+  { cat:'AI서비스', diff:'easy', text:'AI로 발표 자료(슬라이드)를 만들어주는 서비스도 있다.', answer:'O' },
+  { cat:'AI서비스', diff:'easy', text:'Amazon Alexa는 아마존의 AI 음성 비서이다.', answer:'O' },
+  { cat:'AI서비스', diff:'mid',  text:'ChatGPT는 2022년 11월에 공개되었다.', answer:'O' },
+  { cat:'AI서비스', diff:'mid',  text:'ChatGPT 유료 플랜의 이름 중 "Plus"가 있다.', answer:'O' },
+  { cat:'AI서비스', diff:'mid',  text:'Claude는 무료 버전과 유료 버전이 모두 제공된다.', answer:'O' },
+  { cat:'AI서비스', diff:'mid',  text:'Gemini는 이전에 "Cortana"라는 이름으로 서비스됐다.', answer:'X' },
+  { cat:'AI서비스', diff:'mid',  text:'Perplexity는 AI 기반 검색·답변 서비스이다.', answer:'O' },
+  { cat:'AI서비스', diff:'mid',  text:'네이버의 AI 챗봇은 "카카오 AI"이다.', answer:'X' },
+  { cat:'AI서비스', diff:'mid',  text:'카카오의 이미지 생성 AI는 "칼로(Karlo)"이다.', answer:'O' },
+  { cat:'AI서비스', diff:'mid',  text:'"Runway"는 Microsoft의 AI 문서 편집 도구이다.', answer:'X' },
+  { cat:'AI서비스', diff:'mid',  text:'"Pika"는 텍스트로 영상을 만드는 AI 서비스이다.', answer:'O' },
+  { cat:'AI서비스', diff:'mid',  text:'"Whisper"는 OpenAI의 음성 인식 모델이다.', answer:'O' },
+  { cat:'AI서비스', diff:'mid',  text:'"ElevenLabs"는 AI 이미지 편집 서비스로 유명하다.', answer:'X' },
+  { cat:'AI서비스', diff:'mid',  text:'"Character.AI"는 캐릭터와 대화하는 챗봇 서비스이다.', answer:'O' },
+  { cat:'AI서비스', diff:'mid',  text:'"Notion AI"는 노션에 통합된 AI 글쓰기 도구이다.', answer:'O' },
+  { cat:'AI서비스', diff:'mid',  text:'"Cursor"는 AI가 코드 작성을 도와주는 편집기이다.', answer:'O' },
+  { cat:'AI서비스', diff:'mid',  text:'"Copilot"은 구글의 AI 어시스턴트 브랜드이다.', answer:'X' },
+  { cat:'AI서비스', diff:'mid',  text:'ChatGPT는 텍스트만 이해하고 이미지는 이해하지 못한다.', answer:'X' },
+  { cat:'AI서비스', diff:'mid',  text:'Claude에는 문서 파일을 업로드해 분석시킬 수 있는 기능이 있다.', answer:'O' },
+  { cat:'AI서비스', diff:'mid',  text:'"Sora"는 구글이 발표한 영상 생성 AI이다.', answer:'X' },
+  { cat:'AI서비스', diff:'mid',  text:'"카카오톡 AI 요약"은 카카오톡 대화 요약 기능이다.', answer:'O' },
+  { cat:'AI서비스', diff:'mid',  text:'"Gemini Advanced"는 구글의 유료 AI 서비스 플랜이다.', answer:'O' },
+  { cat:'AI서비스', diff:'easy', text:'AI 음성 비서는 스피커에도 내장되어 있다.', answer:'O' },
+  { cat:'AI서비스', diff:'easy', text:'구글 렌즈는 이미지 인식 AI 서비스이다.', answer:'O' },
+  { cat:'AI서비스', diff:'easy', text:'AI 챗봇에게 "안녕"이라고 인사할 수 있다.', answer:'O' },
+  { cat:'AI서비스', diff:'easy', text:'AI 챗봇은 24시간 언제나 이용할 수 있다.', answer:'O' },
+  { cat:'AI서비스', diff:'easy', text:'AI 챗봇은 텍스트 대화만 가능하고 추천 기능은 없다.', answer:'X' },
+  { cat:'AI서비스', diff:'mid',  text:'"Bing Chat"은 마이크로소프트의 AI 검색 챗봇이었다.', answer:'O' },
+  { cat:'AI서비스', diff:'mid',  text:'"MS 코파일럿"은 문서 작성, 표 정리 등을 도와준다.', answer:'O' },
+  { cat:'AI서비스', diff:'mid',  text:'AI 챗봇에게 요약, 번역, 이메일 작성을 시킬 수 있다.', answer:'O' },
+  { cat:'AI서비스', diff:'mid',  text:'AI 챗봇은 개인 정보 입력 시 주의가 필요하다.', answer:'O' },
+  { cat:'AI서비스', diff:'mid',  text:'ChatGPT의 GPT는 General Purpose Tool의 약자이다.', answer:'X' },
+
+  // ───────── 유명 기업·인물 (50) ─────────
+  { cat:'AI기업', diff:'easy', text:'OpenAI는 ChatGPT를 만든 회사이다.', answer:'O' },
+  { cat:'AI기업', diff:'easy', text:'구글(Google)은 AI 연구를 활발히 하는 회사이다.', answer:'O' },
+  { cat:'AI기업', diff:'easy', text:'애플(Apple)도 AI 관련 제품을 만든다.', answer:'O' },
+  { cat:'AI기업', diff:'easy', text:'삼성전자도 자체 AI 기술을 개발하고 있다.', answer:'O' },
+  { cat:'AI기업', diff:'easy', text:'NVIDIA는 스마트폰 제조로 유명한 회사이다.', answer:'X' },
+  { cat:'AI기업', diff:'easy', text:'Meta(구 페이스북)도 AI 연구를 한다.', answer:'O' },
+  { cat:'AI기업', diff:'easy', text:'테슬라는 자율주행 AI를 개발한다.', answer:'O' },
+  { cat:'AI기업', diff:'easy', text:'네이버는 한국의 AI 기술을 개발하는 대표 회사이다.', answer:'O' },
+  { cat:'AI기업', diff:'easy', text:'카카오도 AI 서비스를 개발한다.', answer:'O' },
+  { cat:'AI기업', diff:'easy', text:'MS(마이크로소프트)는 OpenAI와 협력한다.', answer:'O' },
+  { cat:'AI기업', diff:'easy', text:'IBM은 오래된 컴퓨터 회사이며 AI에도 참여한다.', answer:'O' },
+  { cat:'AI기업', diff:'easy', text:'아마존은 AI 클라우드 서비스를 제공한다.', answer:'O' },
+  { cat:'AI기업', diff:'easy', text:'구글 검색은 AI 알고리즘을 사용한다.', answer:'O' },
+  { cat:'AI기업', diff:'easy', text:'AI 회사들은 모두 서로 라이벌이다.', answer:'X' },
+  { cat:'AI기업', diff:'easy', text:'스타트업 회사들도 AI를 개발한다.', answer:'O' },
+  { cat:'AI기업', diff:'mid',  text:'Anthropic은 AI 안전(Safety)을 강조하는 회사이다.', answer:'O' },
+  { cat:'AI기업', diff:'mid',  text:'OpenAI의 CEO는 샘 올트먼(Sam Altman)이다.', answer:'O' },
+  { cat:'AI기업', diff:'mid',  text:'Anthropic의 CEO는 일론 머스크이다.', answer:'X' },
+  { cat:'AI기업', diff:'mid',  text:'구글 딥마인드의 CEO는 데미스 하사비스이다.', answer:'O' },
+  { cat:'AI기업', diff:'mid',  text:'테슬라의 CEO는 일론 머스크이다.', answer:'O' },
+  { cat:'AI기업', diff:'mid',  text:'일론 머스크는 xAI라는 AI 회사도 설립했다.', answer:'O' },
+  { cat:'AI기업', diff:'mid',  text:'Meta의 AI 연구를 이끄는 얀 르쿤(Yann LeCun)은 딥러닝의 대가이다.', answer:'O' },
+  { cat:'AI기업', diff:'mid',  text:'제프리 힌튼은 "딥러닝의 대부"로 불리는 과학자이다.', answer:'O' },
+  { cat:'AI기업', diff:'mid',  text:'"Hugging Face"는 AI 전용 반도체를 설계하는 회사이다.', answer:'X' },
+  { cat:'AI기업', diff:'mid',  text:'"Mistral AI"는 프랑스 AI 회사이다.', answer:'O' },
+  { cat:'AI기업', diff:'mid',  text:'"Cohere"는 캐나다에 본사를 둔 AI 기업이다.', answer:'O' },
+  { cat:'AI기업', diff:'mid',  text:'"Perplexity"는 AI 검색 서비스를 제공한다.', answer:'O' },
+  { cat:'AI기업', diff:'mid',  text:'"Midjourney"는 AI 이미지 생성 회사이다.', answer:'O' },
+  { cat:'AI기업', diff:'mid',  text:'"Stability AI"는 Stable Diffusion을 만든 회사이다.', answer:'O' },
+  { cat:'AI기업', diff:'mid',  text:'"Runway"는 AI 영상 편집·생성 도구를 만든다.', answer:'O' },
+  { cat:'AI기업', diff:'mid',  text:'LG전자는 자체 AI 연구소를 운영한다.', answer:'O' },
+  { cat:'AI기업', diff:'mid',  text:'KT도 자체 AI 서비스를 운영한다.', answer:'O' },
+  { cat:'AI기업', diff:'mid',  text:'SK텔레콤의 AI 개인 비서는 "클로바"이다.', answer:'X' },
+  { cat:'AI기업', diff:'mid',  text:'삼성전자의 AI 모델 이름은 "삼성 알파"이다.', answer:'X' },
+  { cat:'AI기업', diff:'mid',  text:'네이버의 초거대 AI는 "카카오 LLM"이다.', answer:'X' },
+  { cat:'AI기업', diff:'mid',  text:'"딥마인드(DeepMind)"는 중국에 뿌리를 둔 AI 연구소이다.', answer:'X' },
+  { cat:'AI기업', diff:'mid',  text:'"바이두(Baidu)"는 중국의 대표 검색·AI 기업이다.', answer:'O' },
+  { cat:'AI기업', diff:'mid',  text:'"알리바바"도 자체 AI 기술을 개발한다.', answer:'O' },
+  { cat:'AI기업', diff:'mid',  text:'"Google Cloud"는 AI 클라우드 서비스를 제공한다.', answer:'O' },
+  { cat:'AI기업', diff:'mid',  text:'"AWS"는 아마존의 클라우드·AI 서비스이다.', answer:'O' },
+  { cat:'AI기업', diff:'mid',  text:'"엔비디아"의 CEO는 팀 쿡이다.', answer:'X' },
+  { cat:'AI기업', diff:'mid',  text:'"Meta"의 CEO는 순다르 피차이이다.', answer:'X' },
+  { cat:'AI기업', diff:'mid',  text:'"Alphabet"은 마이크로소프트의 모회사이다.', answer:'X' },
+  { cat:'AI기업', diff:'easy', text:'AI 회사들은 대부분 실리콘밸리 지역에 많다.', answer:'O' },
+  { cat:'AI기업', diff:'easy', text:'한국에도 AI 스타트업이 많이 있다.', answer:'O' },
+  { cat:'AI기업', diff:'easy', text:'AI 기술은 대학교 연구실에서도 개발된다.', answer:'O' },
+  { cat:'AI기업', diff:'easy', text:'AI 대회(콘테스트)도 정기적으로 열린다.', answer:'O' },
+  { cat:'AI기업', diff:'easy', text:'AI 개발자들은 논문을 통해 연구 성과를 공유한다.', answer:'O' },
+  { cat:'AI기업', diff:'easy', text:'AI 관련 기업들의 시가총액은 최근 급증했다.', answer:'O' },
+  { cat:'AI기업', diff:'mid',  text:'"엔비디아 H100"은 AI 학습용 고성능 GPU이다.', answer:'O' },
+
+  // ───────── 알고리즘 기초 (40) ─────────
+  { cat:'알고리즘', diff:'easy', text:'컴퓨터 프로그램은 알고리즘으로 이루어진다.', answer:'O' },
+  { cat:'알고리즘', diff:'easy', text:'"정렬"은 데이터를 순서대로 나열하는 것이다.', answer:'O' },
+  { cat:'알고리즘', diff:'easy', text:'"검색(탐색)"은 데이터에서 원하는 것을 찾는 것이다.', answer:'O' },
+  { cat:'알고리즘', diff:'easy', text:'"버블 정렬"은 정렬 알고리즘의 한 종류이다.', answer:'O' },
+  { cat:'알고리즘', diff:'easy', text:'"이진 탐색"은 정렬된 데이터에서 빠르게 찾는 방법이다.', answer:'O' },
+  { cat:'알고리즘', diff:'easy', text:'배열(Array)은 데이터를 여러 개 담는 자료구조이다.', answer:'O' },
+  { cat:'알고리즘', diff:'easy', text:'"스택(Stack)"은 줄처럼 먼저 들어간 것이 먼저 나오는 구조이다.', answer:'X' },
+  { cat:'알고리즘', diff:'easy', text:'"큐(Queue)"는 줄 서서 기다리듯이 먼저 들어간 것이 먼저 나오는 구조이다.', answer:'O' },
+  { cat:'알고리즘', diff:'easy', text:'프로그래밍 언어에서 "함수"는 특정 작업을 하는 코드 묶음이다.', answer:'O' },
+  { cat:'알고리즘', diff:'easy', text:'"반복문(loop)"은 같은 작업을 여러 번 반복하는 문법이다.', answer:'O' },
+  { cat:'알고리즘', diff:'easy', text:'"조건문(if)"은 상황에 따라 다른 코드를 실행하는 문법이다.', answer:'O' },
+  { cat:'알고리즘', diff:'easy', text:'"변수"는 값을 저장하는 공간이다.', answer:'O' },
+  { cat:'알고리즘', diff:'easy', text:'프로그래밍 언어 종류에는 Python, Java, C 등이 있다.', answer:'O' },
+  { cat:'알고리즘', diff:'easy', text:'"버그(bug)"는 프로그램 설치 파일을 뜻한다.', answer:'X' },
+  { cat:'알고리즘', diff:'easy', text:'"디버깅"은 프로그램의 오류를 찾아 고치는 작업이다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'"이진 탐색"은 정렬되지 않은 데이터에서도 O(log n)에 동작한다.', answer:'X' },
+  { cat:'알고리즘', diff:'mid',  text:'"버블 정렬"은 평균적으로 O(n²) 시간이 걸린다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'"퀵 정렬"은 평균적으로 O(n log n) 시간이 걸린다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'"해시맵"은 키(key)와 값(value) 쌍으로 데이터를 저장한다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'"트리(tree)"는 계층 구조를 표현하는 자료구조이다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'"그래프"는 노드(정점)와 간선으로 이루어진 자료구조이다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'"BFS(너비 우선 탐색)"는 그래프 탐색 알고리즘이다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'"DFS(깊이 우선 탐색)"도 그래프 탐색 알고리즘이다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'"재귀 함수"는 함수가 자기 자신을 호출하는 방식이다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'"동적 계획법(DP)"은 문제를 한 번에 통째로 무작위로 풀어야 한다.', answer:'X' },
+  { cat:'알고리즘', diff:'mid',  text:'"그리디 알고리즘"은 매 순간 가장 좋아 보이는 선택을 하는 방법이다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'"연결 리스트"는 각 데이터가 다음 데이터를 가리키는 구조이다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'"우선순위 큐"는 우선순위가 높은 데이터를 먼저 꺼내는 자료구조이다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'"힙(Heap)"은 정렬과 무관한 순수 저장 용도의 자료구조이다.', answer:'X' },
+  { cat:'알고리즘', diff:'mid',  text:'"이진 트리"는 각 노드가 최대 2개의 자식을 가지는 트리이다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'"정렬"은 항상 오름차순으로만 할 수 있다.', answer:'X' },
+  { cat:'알고리즘', diff:'mid',  text:'"삽입 정렬"은 정렬 알고리즘 중 하나이다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'"선택 정렬"도 정렬 알고리즘 중 하나이다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'컴퓨터에서 데이터는 0부터 9까지의 숫자로 표현된다.', answer:'X' },
+  { cat:'알고리즘', diff:'mid',  text:'"메모리"는 데이터를 임시로 저장하는 공간이다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'"CPU"는 컴퓨터의 중앙 저장 장치이다.', answer:'X' },
+  { cat:'알고리즘', diff:'mid',  text:'"시간복잡도"는 알고리즘 실행 시간의 척도이다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'"공간복잡도"는 알고리즘이 사용하는 메모리 양의 척도이다.', answer:'O' },
+  { cat:'알고리즘', diff:'mid',  text:'"O(1)"은 데이터 크기에 비례해 시간이 늘어난다는 의미이다.', answer:'X' },
+  { cat:'알고리즘', diff:'mid',  text:'"O(n)"은 데이터 크기에 비례해 시간이 늘어난다는 뜻이다.', answer:'O' },
+
+  // ───────── 딥러닝 기본 (40) ─────────
+  { cat:'딥러닝', diff:'easy', text:'"딥러닝"은 로봇 몸체를 제어하는 기계 공학 분야이다.', answer:'X' },
+  { cat:'딥러닝', diff:'easy', text:'"신경망(뉴럴 네트워크)"은 딥러닝의 기본 구조이다.', answer:'O' },
+  { cat:'딥러닝', diff:'easy', text:'딥러닝은 대량의 데이터로 학습한다.', answer:'O' },
+  { cat:'딥러닝', diff:'easy', text:'딥러닝은 그림 인식, 음성 인식 등에 사용된다.', answer:'O' },
+  { cat:'딥러닝', diff:'easy', text:'"학습"은 AI 모델이 데이터로부터 규칙을 찾는 과정이다.', answer:'O' },
+  { cat:'딥러닝', diff:'easy', text:'"예측"은 학습된 모델이 새로운 데이터에 답을 내는 것이다.', answer:'O' },
+  { cat:'딥러닝', diff:'easy', text:'AI 모델은 잘못 학습하면 잘못된 예측을 한다.', answer:'O' },
+  { cat:'딥러닝', diff:'easy', text:'"오버피팅"은 AI가 학습 데이터에만 지나치게 맞춰지는 문제이다.', answer:'O' },
+  { cat:'딥러닝', diff:'easy', text:'"이미지 분류"는 사진이 무엇을 담고 있는지 알아내는 작업이다.', answer:'O' },
+  { cat:'딥러닝', diff:'easy', text:'AI는 이미지 안에서 개와 고양이를 절대 구분하지 못한다.', answer:'X' },
+  { cat:'딥러닝', diff:'mid',  text:'"트랜스포머(Transformer)"는 최근 LLM의 기본 구조이다.', answer:'O' },
+  { cat:'딥러닝', diff:'mid',  text:'"어텐션(Attention)"은 트랜스포머의 핵심 메커니즘이다.', answer:'O' },
+  { cat:'딥러닝', diff:'mid',  text:'"CNN(합성곱 신경망)"은 이미지 처리에 주로 쓰인다.', answer:'O' },
+  { cat:'딥러닝', diff:'mid',  text:'"RNN(순환 신경망)"은 시계열 데이터 처리에 사용된다.', answer:'O' },
+  { cat:'딥러닝', diff:'mid',  text:'"강화학습"은 정답이 있는 데이터로만 학습하는 방법이다.', answer:'X' },
+  { cat:'딥러닝', diff:'mid',  text:'"지도학습"은 정답 없이 패턴만으로 스스로 배우는 방법이다.', answer:'X' },
+  { cat:'딥러닝', diff:'mid',  text:'"비지도학습"은 정답 없이 데이터의 패턴을 찾는 학습이다.', answer:'O' },
+  { cat:'딥러닝', diff:'mid',  text:'"파라미터"는 신경망이 학습을 통해 조정하는 값이다.', answer:'O' },
+  { cat:'딥러닝', diff:'mid',  text:'"에포크(epoch)"는 학습 데이터를 몇 번 반복해 봤는지 나타낸다.', answer:'O' },
+  { cat:'딥러닝', diff:'mid',  text:'"배치(batch)"는 한 번에 학습에 사용되는 데이터의 묶음이다.', answer:'O' },
+  { cat:'딥러닝', diff:'mid',  text:'"학습률(learning rate)"은 파라미터를 얼마나 크게 조정할지 결정한다.', answer:'O' },
+  { cat:'딥러닝', diff:'mid',  text:'"손실 함수(loss)"는 모델의 파라미터를 저장하는 공간이다.', answer:'X' },
+  { cat:'딥러닝', diff:'mid',  text:'"역전파(backpropagation)"는 신경망 학습의 핵심 알고리즘이다.', answer:'O' },
+  { cat:'딥러닝', diff:'mid',  text:'딥러닝 학습에는 GPU보다 일반 CPU가 항상 더 효율적이다.', answer:'X' },
+  { cat:'딥러닝', diff:'mid',  text:'"파인튜닝"은 기존 모델을 새 데이터로 추가 학습시키는 것이다.', answer:'O' },
+  { cat:'딥러닝', diff:'mid',  text:'"사전학습(pre-training)"은 모델을 미리 대량 데이터로 학습시키는 단계이다.', answer:'O' },
+  { cat:'딥러닝', diff:'mid',  text:'"GAN"은 생성 AI 기법 중 하나이다.', answer:'O' },
+  { cat:'딥러닝', diff:'mid',  text:'"딥러닝"은 머신러닝 없이도 독립적으로 존재하는 별개 분야이다.', answer:'X' },
+  { cat:'딥러닝', diff:'mid',  text:'"이미지 생성 AI"는 노이즈에서 점점 이미지를 만들어가는 방식으로 작동한다.', answer:'O' },
+  { cat:'딥러닝', diff:'mid',  text:'"임베딩(embedding)"은 데이터를 벡터로 변환한 표현이다.', answer:'O' },
+  { cat:'딥러닝', diff:'mid',  text:'"벡터"는 여러 개의 숫자로 이루어진 데이터 표현 방식이다.', answer:'O' },
+  { cat:'딥러닝', diff:'mid',  text:'"활성화 함수"는 신경망의 각 층에서 값을 변환하는 함수이다.', answer:'O' },
+  { cat:'딥러닝', diff:'mid',  text:'"ReLU"는 대표적인 활성화 함수 중 하나이다.', answer:'O' },
+  { cat:'딥러닝', diff:'mid',  text:'"드롭아웃"은 학습 시 신경망 일부를 임의로 끄는 기법이다.', answer:'O' },
+  { cat:'딥러닝', diff:'mid',  text:'"정규화(normalization)"는 데이터를 일정 범위로 조정하는 작업이다.', answer:'O' },
+  { cat:'딥러닝', diff:'mid',  text:'"학습 데이터"와 "테스트 데이터"는 보통 나누어서 사용한다.', answer:'O' },
+  { cat:'딥러닝', diff:'mid',  text:'"검증 데이터"는 학습 중 모델 성능을 확인하는 용도이다.', answer:'O' },
+  { cat:'딥러닝', diff:'mid',  text:'"AI 모델의 정확도"는 예측이 맞을 확률을 나타내는 지표 중 하나이다.', answer:'O' },
+  { cat:'딥러닝', diff:'mid',  text:'"파이토치(PyTorch)"는 애플이 만든 딥러닝 프레임워크이다.', answer:'X' },
+  { cat:'딥러닝', diff:'mid',  text:'"텐서플로우(TensorFlow)"도 대표적인 딥러닝 프레임워크이다.', answer:'O' },
+
+  // ───────── AI 생활 활용 (40) ─────────
+  { cat:'AI활용', diff:'easy', text:'AI는 병원에서 의료 영상 판독에도 사용된다.', answer:'O' },
+  { cat:'AI활용', diff:'easy', text:'자율주행 자동차는 AI 기술을 사용한다.', answer:'O' },
+  { cat:'AI활용', diff:'easy', text:'AI 스피커에게 날씨를 물어볼 수 있다.', answer:'O' },
+  { cat:'AI활용', diff:'easy', text:'스마트폰의 사진 자동 정리 기능은 AI를 사용한다.', answer:'O' },
+  { cat:'AI활용', diff:'easy', text:'유튜브·넷플릭스의 추천 영상은 AI 알고리즘을 기반으로 한다.', answer:'O' },
+  { cat:'AI활용', diff:'easy', text:'스마트 홈에서 AI가 조명·온도를 제어한다.', answer:'O' },
+  { cat:'AI활용', diff:'easy', text:'AI로 사진의 배경을 지울 수 있다.', answer:'O' },
+  { cat:'AI활용', diff:'easy', text:'AI로 오래된 흑백 사진을 컬러로 바꿀 수 있다.', answer:'O' },
+  { cat:'AI활용', diff:'easy', text:'AI 챗봇은 학습 도움이 불가능하고 게임만 할 수 있다.', answer:'X' },
+  { cat:'AI활용', diff:'easy', text:'AI가 코드 자동 완성을 해주는 기능이 있다.', answer:'O' },
+  { cat:'AI활용', diff:'easy', text:'AI로 문서의 오탈자를 검사할 수 있다.', answer:'O' },
+  { cat:'AI활용', diff:'easy', text:'AI 번역기는 한국어와 영어만 번역 가능하다.', answer:'X' },
+  { cat:'AI활용', diff:'easy', text:'AI가 그림을 그려주는 앱이 스마트폰에도 있다.', answer:'O' },
+  { cat:'AI활용', diff:'easy', text:'AI로 자기소개서 초안을 작성할 수 있다.', answer:'O' },
+  { cat:'AI활용', diff:'easy', text:'AI 챗봇에게 감정 상담을 시도하는 사람도 있다.', answer:'O' },
+  { cat:'AI활용', diff:'easy', text:'AI로 회의 내용을 자동 요약할 수 있다.', answer:'O' },
+  { cat:'AI활용', diff:'easy', text:'AI가 얼굴을 인식해 사진 속 인물을 찾아준다.', answer:'O' },
+  { cat:'AI활용', diff:'easy', text:'AI는 스포츠 경기 분석에도 활용된다.', answer:'O' },
+  { cat:'AI활용', diff:'easy', text:'AI 챗봇은 은행 앱에서도 사용된다.', answer:'O' },
+  { cat:'AI활용', diff:'easy', text:'AI가 자동차 번호판을 인식할 수 있다.', answer:'O' },
+  { cat:'AI활용', diff:'mid',  text:'AI는 신약 개발에 활용되지 않고 인터넷 검색에만 쓰인다.', answer:'X' },
+  { cat:'AI활용', diff:'mid',  text:'AI가 법률 문서를 요약해주는 서비스도 있다.', answer:'O' },
+  { cat:'AI활용', diff:'mid',  text:'"AI 면접" 서비스도 실제로 활용되고 있다.', answer:'O' },
+  { cat:'AI활용', diff:'mid',  text:'AI로 부정 거래(사기)를 감지하는 시스템이 있다.', answer:'O' },
+  { cat:'AI활용', diff:'mid',  text:'AI로 CCTV 영상의 이상 행동을 감지할 수 있다.', answer:'O' },
+  { cat:'AI활용', diff:'mid',  text:'AI 챗봇은 고객 상담(콜센터)에도 활용된다.', answer:'O' },
+  { cat:'AI활용', diff:'mid',  text:'AI로 주식·금융 데이터 분석도 가능하다.', answer:'O' },
+  { cat:'AI활용', diff:'mid',  text:'AI가 뉴스 기사를 자동 작성하는 사례도 있다.', answer:'O' },
+  { cat:'AI활용', diff:'mid',  text:'AI로 음악의 장르를 분류할 수 있다.', answer:'O' },
+  { cat:'AI활용', diff:'mid',  text:'AI로 시나 소설의 초안을 만들 수 있다.', answer:'O' },
+  { cat:'AI활용', diff:'mid',  text:'AI 음성 합성으로 특정 인물의 목소리를 흉내낼 수 있다.', answer:'O' },
+  { cat:'AI활용', diff:'mid',  text:'"딥페이크"는 AI로 가짜 영상을 만드는 기술이다.', answer:'O' },
+  { cat:'AI활용', diff:'mid',  text:'AI로 게임의 NPC 대사를 자동 생성하기도 한다.', answer:'O' },
+  { cat:'AI활용', diff:'mid',  text:'AI가 학습에 사용된 저작물의 저작권 논란이 있다.', answer:'O' },
+  { cat:'AI활용', diff:'mid',  text:'AI 채용 시스템은 항상 완벽하게 공정하다.', answer:'X' },
+  { cat:'AI활용', diff:'mid',  text:'AI는 농업(스마트팜)에도 활용된다.', answer:'O' },
+  { cat:'AI활용', diff:'mid',  text:'AI로 재난 상황을 미리 예측하는 연구도 진행 중이다.', answer:'O' },
+  { cat:'AI활용', diff:'mid',  text:'AI가 자동으로 이력서를 검토·분류하는 서비스가 있다.', answer:'O' },
+  { cat:'AI활용', diff:'mid',  text:'"로보어드바이저"는 로봇 청소기의 다른 이름이다.', answer:'X' },
+  { cat:'AI활용', diff:'mid',  text:'AI로 언어 학습(회화 연습)을 하는 앱도 있다.', answer:'O' },
+
+  // ───────── AI 용어 (20) ─────────
+  { cat:'AI용어', diff:'easy', text:'"AGI"는 인간 수준의 범용 AI를 뜻하는 약자이다.', answer:'O' },
+  { cat:'AI용어', diff:'easy', text:'"ML"은 머신러닝(Machine Learning)의 약자이다.', answer:'O' },
+  { cat:'AI용어', diff:'easy', text:'"DL"은 딥러닝(Deep Learning)의 약자이다.', answer:'O' },
+  { cat:'AI용어', diff:'easy', text:'"GPU"는 그래픽 처리 장치의 약자이다.', answer:'O' },
+  { cat:'AI용어', diff:'easy', text:'"API"는 프로그램끼리 정보를 주고받는 창구이다.', answer:'O' },
+  { cat:'AI용어', diff:'easy', text:'"클라우드"는 인터넷을 통해 서버를 이용하는 방식이다.', answer:'O' },
+  { cat:'AI용어', diff:'easy', text:'"오픈소스"는 코드를 누구나 볼 수 있게 공개하는 방식이다.', answer:'O' },
+  { cat:'AI용어', diff:'mid',  text:'"파운데이션 모델"은 다양한 응용의 기초가 되는 대규모 모델이다.', answer:'O' },
+  { cat:'AI용어', diff:'mid',  text:'"RAG"는 검색으로 얻은 정보를 활용해 답변하는 기법의 약자이다.', answer:'O' },
+  { cat:'AI용어', diff:'mid',  text:'"파인튜닝"은 처음부터 새 모델을 만드는 방법이다.', answer:'X' },
+  { cat:'AI용어', diff:'mid',  text:'"프롬프트 엔지니어링"은 AI에 좋은 지시를 주도록 설계하는 기술이다.', answer:'O' },
+  { cat:'AI용어', diff:'mid',  text:'"에이전트(Agent)"는 스스로 도구를 사용해 작업하는 AI를 뜻하기도 한다.', answer:'O' },
+  { cat:'AI용어', diff:'mid',  text:'"멀티모달"은 여러 종류의 데이터를 함께 다룰 수 있음을 뜻한다.', answer:'O' },
+  { cat:'AI용어', diff:'mid',  text:'"컨텍스트 윈도우"는 AI가 한 번에 볼 수 있는 문맥의 크기를 뜻한다.', answer:'O' },
+  { cat:'AI용어', diff:'mid',  text:'"토크나이저"는 텍스트를 토큰으로 나누는 도구이다.', answer:'O' },
+  { cat:'AI용어', diff:'mid',  text:'"오픈웨이트"는 모델의 파라미터를 공개한 AI를 뜻한다.', answer:'O' },
+  { cat:'AI용어', diff:'mid',  text:'"제로샷(zero-shot)"은 예시 없이 바로 시키는 방식을 뜻한다.', answer:'O' },
+  { cat:'AI용어', diff:'mid',  text:'"퓨샷(few-shot)"은 예시를 몇 개 주고 시키는 방식을 뜻한다.', answer:'O' },
+  { cat:'AI용어', diff:'mid',  text:'"온디바이스 AI"는 서버가 아닌 기기 내에서 작동하는 AI이다.', answer:'O' },
+  { cat:'AI용어', diff:'mid',  text:'"AI 정렬(alignment)"은 AI가 인간의 의도에 부합하도록 하는 연구 분야이다.', answer:'O' },
+];
+
+// =========================================================
+// 게임300 문제 은행 (게임 전문 300문항 / 상중하 균등)
+// 카테고리: 아케이드·초창기 게임사(40) / 콘솔 하드웨어(40) /
+//           닌텐도 IP(40) / 블리자드·PC게임(40) / 한국 게임(40) /
+//           MMORPG·MOBA·FPS(40) / 인디·최신 게임(30) / e스포츠·게임문화(30)
+// =========================================================
+const QUESTIONS_GAME = [
+  // ───────── 아케이드·초창기 게임사 (40) ─────────
+  { cat:'아케이드', diff:'easy', text:'"팩맨"은 노란색 캐릭터가 등장하는 게임이다.', answer:'O' },
+  { cat:'아케이드', diff:'easy', text:'"테트리스"는 블록을 쌓는 퍼즐 게임이다.', answer:'O' },
+  { cat:'아케이드', diff:'easy', text:'"스페이스 인베이더"는 슈팅 게임이다.', answer:'O' },
+  { cat:'아케이드', diff:'easy', text:'"동키콩"의 원래 주인공은 마리오였다.', answer:'O' },
+  { cat:'아케이드', diff:'easy', text:'"퐁(Pong)"은 아타리가 만든 게임이다.', answer:'O' },
+  { cat:'아케이드', diff:'easy', text:'"갤러그"는 우주선을 조작하는 슈팅 게임이다.', answer:'O' },
+  { cat:'아케이드', diff:'easy', text:'오락실 아케이드 게임은 동전을 넣어 플레이한다.', answer:'O' },
+  { cat:'아케이드', diff:'easy', text:'"디그더그"는 남코가 만든 게임이다.', answer:'O' },
+  { cat:'아케이드', diff:'easy', text:'"프로거"는 개구리가 도로를 건너는 게임이다.', answer:'O' },
+  { cat:'아케이드', diff:'easy', text:'"1942"는 비행 슈팅 게임이다.', answer:'O' },
+  { cat:'아케이드', diff:'mid',  text:'"팩맨"은 1980년 남코가 처음 출시했다.', answer:'O' },
+  { cat:'아케이드', diff:'mid',  text:'"스페이스 인베이더"는 1978년 일본 타이토에서 출시됐다.', answer:'O' },
+  { cat:'아케이드', diff:'mid',  text:'"동키콩"은 1981년에 처음 출시되었다.', answer:'O' },
+  { cat:'아케이드', diff:'mid',  text:'"제비우스"는 남코의 세로 스크롤 슈팅 게임이다.', answer:'O' },
+  { cat:'아케이드', diff:'mid',  text:'"미즈 팩맨"의 원조인 팩맨은 남녀 구분 없는 캐릭터로 시작했다.', answer:'O' },
+  { cat:'아케이드', diff:'mid',  text:'"메탈슬러그"는 캡콤의 대표적인 런앤건 아케이드 게임이다.', answer:'X' },
+  { cat:'아케이드', diff:'mid',  text:'"스트리트 파이터"의 개발사는 세가이다.', answer:'X' },
+  { cat:'아케이드', diff:'mid',  text:'"더블 드래곤"은 벨트 스크롤 액션 장르를 정립한 게임 중 하나이다.', answer:'O' },
+  { cat:'아케이드', diff:'mid',  text:'"어스웜 짐"은 원래 아케이드 게임으로 시작됐다.', answer:'X' },
+  { cat:'아케이드', diff:'mid',  text:'"버추어 파이터"는 세가가 개발한 최초의 3D 격투 게임이다.', answer:'O' },
+  { cat:'아케이드', diff:'mid',  text:'"보글보글(Bubble Bobble)"은 남코가 개발했다.', answer:'X' },
+  { cat:'아케이드', diff:'mid',  text:'"철권"은 캡콤의 격투 게임 시리즈이다.', answer:'X' },
+  { cat:'아케이드', diff:'mid',  text:'"모탈 컴뱃"은 일본에서 개발된 격투 게임이다.', answer:'X' },
+  { cat:'아케이드', diff:'mid',  text:'"킹 오브 파이터즈"는 캡콤의 대표 격투 게임이다.', answer:'X' },
+  { cat:'아케이드', diff:'mid',  text:'"디펜더"는 윌리엄스 일렉트로닉스가 만든 횡스크롤 슈팅 게임이다.', answer:'O' },
+  { cat:'아케이드', diff:'hard', text:'세계 최초의 비디오게임은 1972년 아타리의 "퐁"이다.', answer:'X' },
+  { cat:'아케이드', diff:'hard', text:'"팩맨"의 원래 일본어 이름은 "퍽맨(Puck Man)"이었다.', answer:'O' },
+  { cat:'아케이드', diff:'hard', text:'1962년 MIT에서 개발된 "스페이스워!"는 초기 컴퓨터 게임 중 하나이다.', answer:'O' },
+  { cat:'아케이드', diff:'hard', text:'아타리의 창립자는 스티브 잡스이다.', answer:'X' },
+  { cat:'아케이드', diff:'hard', text:'1983년 "아타리 쇼크"는 북미 비디오게임 시장의 붕괴를 초래했다.', answer:'O' },
+  { cat:'아케이드', diff:'hard', text:'"E.T. the Extra-Terrestrial" 게임의 실패는 아타리 쇼크의 상징적 사건이다.', answer:'O' },
+  { cat:'아케이드', diff:'hard', text:'"컴퓨터 스페이스"는 1971년 상업적으로 판매된 최초의 아케이드 게임이다.', answer:'O' },
+  { cat:'아케이드', diff:'hard', text:'"제비우스"는 게임 배경을 그리는 데 최초로 밑그림(레이어) 개념을 도입했다.', answer:'O' },
+  { cat:'아케이드', diff:'hard', text:'"뽀글뽀글" 캐릭터 "버블런"과 "보블런"은 인간 형태로 저주받았다는 설정이다.', answer:'O' },
+  { cat:'아케이드', diff:'hard', text:'"팩맨"의 4마리 유령 이름은 블링키, 핑키, 잉키, 클라이드이다.', answer:'O' },
+  { cat:'아케이드', diff:'hard', text:'"스트리트 파이터 2"는 1985년 캡콤이 출시했다.', answer:'X' },
+  { cat:'아케이드', diff:'hard', text:'"버추어 파이터"는 1993년 세가가 출시한 3D 격투 게임이다.', answer:'O' },
+  { cat:'아케이드', diff:'hard', text:'"철권" 시리즈의 개발사는 캡콤이다.', answer:'X' },
+  { cat:'아케이드', diff:'hard', text:'"1943"은 "1942"의 후속작으로 캡콤이 만들었다.', answer:'O' },
+  { cat:'아케이드', diff:'hard', text:'"드래곤즈 레어"는 레이저디스크 기술을 사용한 초기 아케이드 게임이다.', answer:'O' },
+
+  // ───────── 콘솔 하드웨어 (40) ─────────
+  { cat:'콘솔', diff:'easy', text:'플레이스테이션은 소니가 만든 콘솔이다.', answer:'O' },
+  { cat:'콘솔', diff:'easy', text:'닌텐도 스위치는 휴대 모드와 거치 모드를 지원한다.', answer:'O' },
+  { cat:'콘솔', diff:'easy', text:'Xbox는 마이크로소프트가 만든 콘솔이다.', answer:'O' },
+  { cat:'콘솔', diff:'easy', text:'게임보이는 휴대용 콘솔이다.', answer:'O' },
+  { cat:'콘솔', diff:'easy', text:'PS5는 PS4의 후속 콘솔이다.', answer:'O' },
+  { cat:'콘솔', diff:'easy', text:'닌텐도 DS는 두 개의 화면을 가진 휴대용 콘솔이다.', answer:'O' },
+  { cat:'콘솔', diff:'easy', text:'Xbox Series X는 4K 게이밍을 지원한다.', answer:'O' },
+  { cat:'콘솔', diff:'easy', text:'PSP는 소니의 휴대용 콘솔이다.', answer:'O' },
+  { cat:'콘솔', diff:'easy', text:'Wii는 모션 컨트롤을 활용하는 콘솔이다.', answer:'O' },
+  { cat:'콘솔', diff:'easy', text:'닌텐도 스위치는 태블릿 형태이다.', answer:'O' },
+  { cat:'콘솔', diff:'mid',  text:'닌텐도 패미컴은 북미에서 SNES라는 이름으로 출시되었다.', answer:'X' },
+  { cat:'콘솔', diff:'mid',  text:'슈퍼 패미컴은 북미에서 SNES라 불렸다.', answer:'O' },
+  { cat:'콘솔', diff:'mid',  text:'세가 메가드라이브는 북미에서 제네시스로 판매됐다.', answer:'O' },
+  { cat:'콘솔', diff:'mid',  text:'플레이스테이션 2는 역대 가장 많이 팔린 콘솔 중 하나이다.', answer:'O' },
+  { cat:'콘솔', diff:'mid',  text:'닌텐도 게임보이는 1995년 출시되었다.', answer:'X' },
+  { cat:'콘솔', diff:'mid',  text:'초대 플레이스테이션(PS1)은 1999년 미국에서 처음 출시되었다.', answer:'X' },
+  { cat:'콘솔', diff:'mid',  text:'닌텐도 64는 카트리지 방식을 사용했다.', answer:'O' },
+  { cat:'콘솔', diff:'mid',  text:'세가 드림캐스트는 인터넷 접속 기능을 지원한 초기 콘솔이다.', answer:'O' },
+  { cat:'콘솔', diff:'mid',  text:'Xbox 360은 마이크로소프트의 2세대 콘솔이다.', answer:'O' },
+  { cat:'콘솔', diff:'mid',  text:'닌텐도 위(Wii)는 2006년에 출시되었다.', answer:'O' },
+  { cat:'콘솔', diff:'mid',  text:'PS4는 2010년에 출시되었다.', answer:'X' },
+  { cat:'콘솔', diff:'mid',  text:'닌텐도 스위치는 2014년 3월에 출시되었다.', answer:'X' },
+  { cat:'콘솔', diff:'mid',  text:'Xbox One은 킨텍트(Kinect) 센서와 함께 처음 판매되었다.', answer:'O' },
+  { cat:'콘솔', diff:'mid',  text:'스팀덱은 소니가 만든 휴대용 게이밍 기기이다.', answer:'X' },
+  { cat:'콘솔', diff:'mid',  text:'닌텐도 3DS는 안경 없이 3D 화면을 볼 수 있다.', answer:'O' },
+  { cat:'콘솔', diff:'hard', text:'세가는 닌텐도와 합병 후 콘솔 하드웨어 시장에서 철수했다.', answer:'X' },
+  { cat:'콘솔', diff:'hard', text:'플레이스테이션은 원래 닌텐도와 소니의 공동 개발 프로젝트에서 파생됐다.', answer:'O' },
+  { cat:'콘솔', diff:'hard', text:'닌텐도 버추얼 보이는 상업적 실패로 기록된 콘솔이다.', answer:'O' },
+  { cat:'콘솔', diff:'hard', text:'세가 새턴은 32비트 시대의 콘솔이다.', answer:'O' },
+  { cat:'콘솔', diff:'hard', text:'닌텐도 GameCube는 미니 DVD 형식의 디스크를 사용했다.', answer:'O' },
+  { cat:'콘솔', diff:'hard', text:'PSP Go는 UMD 드라이브 없이 다운로드 전용으로 설계됐다.', answer:'O' },
+  { cat:'콘솔', diff:'hard', text:'닌텐도 Wii U는 상업적 성공을 거두었다.', answer:'X' },
+  { cat:'콘솔', diff:'hard', text:'아타리 재규어는 64비트를 표방한 콘솔이다.', answer:'O' },
+  { cat:'콘솔', diff:'hard', text:'PS Vita는 소니의 PSP 후속 휴대용 콘솔이다.', answer:'O' },
+  { cat:'콘솔', diff:'hard', text:'닌텐도 스위치의 CPU는 NVIDIA Tegra X1 계열이다.', answer:'O' },
+  { cat:'콘솔', diff:'hard', text:'초대 Xbox는 AMD CPU와 ATI GPU를 사용했다.', answer:'X' },
+  { cat:'콘솔', diff:'hard', text:'닌텐도 3DS의 두 번째 화면은 터치스크린이다.', answer:'O' },
+  { cat:'콘솔', diff:'hard', text:'PS5와 Xbox Series X는 모두 AMD Zen 2 기반 CPU를 사용한다.', answer:'O' },
+  { cat:'콘솔', diff:'hard', text:'초대 게임보이 색상 지원은 회색 톤 스크린이었다.', answer:'O' },
+  { cat:'콘솔', diff:'hard', text:'PC엔진(TurboGrafx-16)은 NEC와 허드슨이 공동 개발한 콘솔이다.', answer:'O' },
+
+  // ───────── 닌텐도 IP (40) ─────────
+  { cat:'닌텐도', diff:'easy', text:'"마리오"는 배관공 캐릭터이다.', answer:'O' },
+  { cat:'닌텐도', diff:'easy', text:'"슈퍼 마리오"는 닌텐도 게임이다.', answer:'O' },
+  { cat:'닌텐도', diff:'easy', text:'"포켓몬"의 대표 캐릭터는 피카츄이다.', answer:'O' },
+  { cat:'닌텐도', diff:'easy', text:'"젤다의 전설" 주인공 이름은 링크이다.', answer:'O' },
+  { cat:'닌텐도', diff:'easy', text:'"동물의 숲"은 닌텐도가 만든 시뮬레이션 게임이다.', answer:'O' },
+  { cat:'닌텐도', diff:'easy', text:'"별의 커비"의 주인공 커비는 분홍색이다.', answer:'O' },
+  { cat:'닌텐도', diff:'easy', text:'"슈퍼 스매시브라더스"는 닌텐도 캐릭터들의 대전 게임이다.', answer:'O' },
+  { cat:'닌텐도', diff:'easy', text:'"마리오카트"는 레이싱 게임이다.', answer:'O' },
+  { cat:'닌텐도', diff:'easy', text:'루이지는 마리오의 형제이다.', answer:'O' },
+  { cat:'닌텐도', diff:'easy', text:'"메트로이드"의 주인공은 사무스 아란이다.', answer:'O' },
+  { cat:'닌텐도', diff:'mid',  text:'"슈퍼 마리오 브라더스"는 1985년 패미컴으로 출시됐다.', answer:'O' },
+  { cat:'닌텐도', diff:'mid',  text:'"포켓몬스터 레드/블루"는 2000년에 처음 발매됐다.', answer:'X' },
+  { cat:'닌텐도', diff:'mid',  text:'"젤다의 전설: 시간의 오카리나"는 닌텐도 64용 게임이다.', answer:'O' },
+  { cat:'닌텐도', diff:'mid',  text:'"동물의 숲"의 첫 작품은 닌텐도 64로 출시되었다.', answer:'O' },
+  { cat:'닌텐도', diff:'mid',  text:'"슈퍼 마리오 갤럭시"는 닌텐도 위(Wii)용 게임이다.', answer:'O' },
+  { cat:'닌텐도', diff:'mid',  text:'"별의 커비"의 개발사는 닌텐도 본사 직할 팀이다.', answer:'X' },
+  { cat:'닌텐도', diff:'mid',  text:'"슈퍼 마리오 오디세이"는 닌텐도 스위치용 게임이다.', answer:'O' },
+  { cat:'닌텐도', diff:'mid',  text:'"메트로이드 프라임"은 3인칭 시점의 격투 게임이다.', answer:'X' },
+  { cat:'닌텐도', diff:'mid',  text:'"파이어 엠블렘"은 SRPG 장르의 닌텐도 시리즈이다.', answer:'O' },
+  { cat:'닌텐도', diff:'mid',  text:'"동키콩 컨트리"는 슈퍼 패미컴에서 프리렌더 3D 그래픽을 사용했다.', answer:'O' },
+  { cat:'닌텐도', diff:'mid',  text:'"F-Zero"는 세가의 미래형 레이싱 시리즈이다.', answer:'X' },
+  { cat:'닌텐도', diff:'mid',  text:'"펀치아웃"은 닌텐도의 복싱 게임 시리즈이다.', answer:'O' },
+  { cat:'닌텐도', diff:'mid',  text:'"스플래툰"은 닌텐도의 3인칭 슈팅 게임이다.', answer:'O' },
+  { cat:'닌텐도', diff:'mid',  text:'"닌텐독스"는 강아지 육성 시뮬레이션 게임이다.', answer:'O' },
+  { cat:'닌텐도', diff:'mid',  text:'"pikmin(피크민)" 시리즈는 닌텐도 개발이 아니다.', answer:'X' },
+  { cat:'닌텐도', diff:'hard', text:'닌텐도는 원래 전자제품 제조 회사로 1960년에 창립됐다.', answer:'X' },
+  { cat:'닌텐도', diff:'hard', text:'"마리오"의 원래 이름은 "수퍼맨(Superman)"이었다.', answer:'X' },
+  { cat:'닌텐도', diff:'hard', text:'"젤다의 전설: 야생의 숨결"은 닌텐도 스위치와 Wii U로 동시 출시됐다.', answer:'O' },
+  { cat:'닌텐도', diff:'hard', text:'"포켓몬 GO"의 개발사는 닌텐도 직속 팀이다.', answer:'X' },
+  { cat:'닌텐도', diff:'hard', text:'"슈퍼 마리오 64"는 3D 액션 플랫포머 장르를 정립한 게임이다.', answer:'O' },
+  { cat:'닌텐도', diff:'hard', text:'"별의 커비"의 창시자는 사쿠라이 마사히로이다.', answer:'O' },
+  { cat:'닌텐도', diff:'hard', text:'"슈퍼 스매시브라더스"의 총 감독은 미야모토 시게루이다.', answer:'X' },
+  { cat:'닌텐도', diff:'hard', text:'"메트로이드"의 사무스 아란이 여성이라는 설정은 원작 클리어 후 공개된다.', answer:'O' },
+  { cat:'닌텐도', diff:'hard', text:'"젤다의 전설"의 창시자는 미야모토 시게루이다.', answer:'O' },
+  { cat:'닌텐도', diff:'hard', text:'"동물의 숲: 뉴 호라이즌"은 2020년 3월에 출시되었다.', answer:'O' },
+  { cat:'닌텐도', diff:'hard', text:'"파이어 엠블렘: 각성"은 시리즈 부활의 계기가 된 작품이다.', answer:'O' },
+  { cat:'닌텐도', diff:'hard', text:'"닌텐도 랩(Labo)"은 골판지로 컨트롤러를 조립하는 완구형 제품이다.', answer:'O' },
+  { cat:'닌텐도', diff:'hard', text:'"제노블레이드 크로니클스"의 개발사는 모노리스 소프트이다.', answer:'O' },
+  { cat:'닌텐도', diff:'hard', text:'"동키콩 컨트리"의 개발사는 영국 레어(Rare)이다.', answer:'O' },
+  { cat:'닌텐도', diff:'hard', text:'"별의 커비" 첫 작품은 게임보이로 1992년 출시되었다.', answer:'O' },
+
+  // ───────── 블리자드·PC게임 (40) ─────────
+  { cat:'PC게임', diff:'easy', text:'"스타크래프트"는 블리자드가 만들었다.', answer:'O' },
+  { cat:'PC게임', diff:'easy', text:'"디아블로"는 액션 RPG 게임이다.', answer:'O' },
+  { cat:'PC게임', diff:'easy', text:'"월드 오브 워크래프트(WoW)"는 MMORPG이다.', answer:'O' },
+  { cat:'PC게임', diff:'easy', text:'"마인크래프트"는 블록으로 세계를 만드는 게임이다.', answer:'O' },
+  { cat:'PC게임', diff:'easy', text:'"오버워치"는 팀 기반 슈팅 게임이다.', answer:'O' },
+  { cat:'PC게임', diff:'easy', text:'"하스스톤"은 카드 게임이다.', answer:'O' },
+  { cat:'PC게임', diff:'easy', text:'"심즈"는 인생 시뮬레이션 게임이다.', answer:'O' },
+  { cat:'PC게임', diff:'easy', text:'"둠(DOOM)"은 1인칭 슈팅 게임이다.', answer:'O' },
+  { cat:'PC게임', diff:'easy', text:'"카운터 스트라이크"는 팀 대전 슈팅 게임이다.', answer:'O' },
+  { cat:'PC게임', diff:'easy', text:'"GTA(그랜드 테프트 오토)"는 오픈월드 게임이다.', answer:'O' },
+  { cat:'PC게임', diff:'mid',  text:'"스타크래프트1"은 1995년 출시되었다.', answer:'X' },
+  { cat:'PC게임', diff:'mid',  text:'"워크래프트 3"에서 유즈맵 "DOTA"가 파생되었다.', answer:'O' },
+  { cat:'PC게임', diff:'mid',  text:'"디아블로 2"는 2000년 블리자드 노스가 개발했다.', answer:'O' },
+  { cat:'PC게임', diff:'mid',  text:'"월드 오브 워크래프트"는 2000년 서비스를 시작했다.', answer:'X' },
+  { cat:'PC게임', diff:'mid',  text:'"오버워치"는 블리자드의 첫 FPS 신규 IP이다.', answer:'O' },
+  { cat:'PC게임', diff:'mid',  text:'"둠(DOOM)"의 개발사는 id Software이다.', answer:'O' },
+  { cat:'PC게임', diff:'mid',  text:'"퀘이크(Quake)"는 밸브(Valve)가 개발했다.', answer:'X' },
+  { cat:'PC게임', diff:'mid',  text:'"하프라이프"는 밸브가 개발한 1인칭 슈팅 게임이다.', answer:'O' },
+  { cat:'PC게임', diff:'mid',  text:'"카운터 스트라이크"는 원래 하프라이프의 모드로 시작됐다.', answer:'O' },
+  { cat:'PC게임', diff:'mid',  text:'"팀 포트리스 2"는 블리자드의 팀 기반 FPS 게임이다.', answer:'X' },
+  { cat:'PC게임', diff:'mid',  text:'"포탈"은 밸브의 퍼즐 게임이다.', answer:'O' },
+  { cat:'PC게임', diff:'mid',  text:'"엘든 링"은 프롬소프트웨어가 개발했다.', answer:'O' },
+  { cat:'PC게임', diff:'mid',  text:'"위쳐 3"는 폴란드 CD Projekt RED가 개발했다.', answer:'O' },
+  { cat:'PC게임', diff:'mid',  text:'"사이버펑크 2077"의 개발사도 CD Projekt RED이다.', answer:'O' },
+  { cat:'PC게임', diff:'mid',  text:'"림월드"는 콜로니 시뮬레이션 게임이다.', answer:'O' },
+  { cat:'PC게임', diff:'hard', text:'블리자드의 창립 연도는 1984년이다.', answer:'X' },
+  { cat:'PC게임', diff:'hard', text:'블리자드의 원래 회사명은 "블리자드 엔터테인먼트(Blizzard Entertainment)"였다.', answer:'X' },
+  { cat:'PC게임', diff:'hard', text:'"스타크래프트: 브루드워"는 원작의 확장팩이다.', answer:'O' },
+  { cat:'PC게임', diff:'hard', text:'"디아블로 III"는 항상 인터넷 접속이 필요한 정책으로 출시 논란이 있었다.', answer:'O' },
+  { cat:'PC게임', diff:'hard', text:'"오버워치 2"는 기존 오버워치를 유료 확장팩 형태로 출시했다.', answer:'X' },
+  { cat:'PC게임', diff:'hard', text:'"둠(1993)"은 셰어웨어 방식으로 배포되어 큰 성공을 거두었다.', answer:'O' },
+  { cat:'PC게임', diff:'hard', text:'id Software의 창립 멤버 중 존 카맥은 그래픽 프로그래머로 유명하다.', answer:'O' },
+  { cat:'PC게임', diff:'hard', text:'존 로메로는 id Software의 공동 창립자 중 한 명이다.', answer:'O' },
+  { cat:'PC게임', diff:'hard', text:'"하프라이프 2"는 스팀 플랫폼을 통해 배포된 최초의 대형 밸브 타이틀이다.', answer:'O' },
+  { cat:'PC게임', diff:'hard', text:'"카운터 스트라이크"의 원제작자는 밍 리(Minh Le)와 제스 클리프(Jess Cliffe)이다.', answer:'O' },
+  { cat:'PC게임', diff:'hard', text:'"엘든 링"의 세계관은 J.R.R. 톨킨이 원작을 제공했다.', answer:'X' },
+  { cat:'PC게임', diff:'hard', text:'"다크 소울" 시리즈의 감독은 코지마 히데오이다.', answer:'X' },
+  { cat:'PC게임', diff:'hard', text:'"디스아너드"는 아케인 스튜디오가 개발한 스텔스 액션 게임이다.', answer:'O' },
+  { cat:'PC게임', diff:'hard', text:'"하프라이프: 알릭스"는 VR 전용 게임이다.', answer:'O' },
+  { cat:'PC게임', diff:'hard', text:'"울티마 온라인"은 상용화된 최초의 MMORPG로 평가받는다.', answer:'O' },
+
+  // ───────── 한국 게임 (40) ─────────
+  { cat:'한국게임', diff:'easy', text:'"리니지"는 엔씨소프트가 만든 게임이다.', answer:'O' },
+  { cat:'한국게임', diff:'easy', text:'"메이플스토리"는 넥슨이 서비스한다.', answer:'O' },
+  { cat:'한국게임', diff:'easy', text:'"카트라이더"는 넥슨의 레이싱 게임이다.', answer:'O' },
+  { cat:'한국게임', diff:'easy', text:'"배틀그라운드(PUBG)"는 한국에서 만든 게임이다.', answer:'O' },
+  { cat:'한국게임', diff:'easy', text:'"검은사막"은 펄어비스가 개발했다.', answer:'O' },
+  { cat:'한국게임', diff:'easy', text:'"던전앤파이터"는 액션 RPG이다.', answer:'O' },
+  { cat:'한국게임', diff:'easy', text:'"크로스파이어"는 스마일게이트가 개발한 FPS 게임이다.', answer:'O' },
+  { cat:'한국게임', diff:'easy', text:'엔씨소프트의 대표 게임은 리니지 시리즈이다.', answer:'O' },
+  { cat:'한국게임', diff:'easy', text:'넥슨은 한국의 대표 게임 회사이다.', answer:'O' },
+  { cat:'한국게임', diff:'easy', text:'"블레이드앤소울"은 엔씨소프트의 MMORPG이다.', answer:'O' },
+  { cat:'한국게임', diff:'mid',  text:'"바람의나라"는 한국 최초의 상용 그래픽 MMORPG로 평가받는다.', answer:'O' },
+  { cat:'한국게임', diff:'mid',  text:'"리니지"는 1998년 넥슨에서 출시했다.', answer:'X' },
+  { cat:'한국게임', diff:'mid',  text:'"메이플스토리"는 2003년 서비스를 시작했다.', answer:'O' },
+  { cat:'한국게임', diff:'mid',  text:'"던전앤파이터"의 개발사는 엔씨소프트이다.', answer:'X' },
+  { cat:'한국게임', diff:'mid',  text:'"카트라이더"는 카프리라이더의 흥행을 잇는 넥슨의 캐주얼 레이싱 게임이다.', answer:'O' },
+  { cat:'한국게임', diff:'mid',  text:'"뮤 온라인"은 엔씨소프트가 개발한 3D MMORPG이다.', answer:'X' },
+  { cat:'한국게임', diff:'mid',  text:'"라그나로크 온라인"은 그라비티가 서비스했다.', answer:'O' },
+  { cat:'한국게임', diff:'mid',  text:'"서든어택"은 넥슨이 서비스한 FPS 게임이다.', answer:'O' },
+  { cat:'한국게임', diff:'mid',  text:'"카운터 스트라이크 온라인"은 넥슨 코리아가 아시아 지역 서비스를 담당했다.', answer:'O' },
+  { cat:'한국게임', diff:'mid',  text:'"오디션"은 T3엔터테인먼트가 개발한 리듬 게임이다.', answer:'O' },
+  { cat:'한국게임', diff:'mid',  text:'"배틀그라운드"의 개발사 크래프톤(전 블루홀)은 한국 회사이다.', answer:'O' },
+  { cat:'한국게임', diff:'mid',  text:'"로스트아크"는 넥슨의 MMORPG이다.', answer:'X' },
+  { cat:'한국게임', diff:'mid',  text:'"검은사막"은 2014년 서비스를 시작했다.', answer:'O' },
+  { cat:'한국게임', diff:'mid',  text:'"쿠키런"은 데브시스터즈가 개발한 게임이다.', answer:'O' },
+  { cat:'한국게임', diff:'mid',  text:'"애니팡"은 카카오게임의 대표적인 초기 흥행작이다.', answer:'O' },
+  { cat:'한국게임', diff:'hard', text:'"바람의나라"는 넥슨이 1996년 서비스를 시작했다.', answer:'O' },
+  { cat:'한국게임', diff:'hard', text:'넥슨의 창립자는 김정주이다.', answer:'O' },
+  { cat:'한국게임', diff:'hard', text:'엔씨소프트의 창립자는 김택진이다.', answer:'O' },
+  { cat:'한국게임', diff:'hard', text:'"리니지 2"는 2003년 서비스를 시작했다.', answer:'O' },
+  { cat:'한국게임', diff:'hard', text:'"크레이지아케이드"는 넥슨의 캐주얼 게임이다.', answer:'O' },
+  { cat:'한국게임', diff:'hard', text:'스마일게이트의 창립자는 김택진이다.', answer:'X' },
+  { cat:'한국게임', diff:'hard', text:'펄어비스의 대표작 "검은사막"은 자체 엔진으로 개발되었다.', answer:'O' },
+  { cat:'한국게임', diff:'hard', text:'"창세기전"은 소프트맥스가 개발한 한국 SRPG이다.', answer:'O' },
+  { cat:'한국게임', diff:'hard', text:'"악튜러스"는 소프트맥스의 SRPG 시리즈이다.', answer:'X' },
+  { cat:'한국게임', diff:'hard', text:'"디아블로 이모탈"은 넷이즈와 블리자드가 공동 개발한 모바일 게임이다.', answer:'O' },
+  { cat:'한국게임', diff:'hard', text:'"P의 거짓"의 개발사는 스마일게이트이다.', answer:'X' },
+  { cat:'한국게임', diff:'hard', text:'"데이브 더 다이버"는 펄어비스가 개발했다.', answer:'X' },
+  { cat:'한국게임', diff:'hard', text:'"스텔라 블레이드"는 펄어비스가 개발한 액션 게임이다.', answer:'X' },
+  { cat:'한국게임', diff:'hard', text:'"승리의 여신: 니케"는 시프트업이 개발했다.', answer:'O' },
+  { cat:'한국게임', diff:'hard', text:'"프리스타일 풋볼"은 조이시티가 서비스했다.', answer:'O' },
+
+  // ───────── MMORPG·MOBA·FPS (40) ─────────
+  { cat:'온라인', diff:'easy', text:'"리그 오브 레전드"는 라이엇 게임즈가 개발했다.', answer:'O' },
+  { cat:'온라인', diff:'easy', text:'"오버워치"는 5:5 팀 슈팅 게임이다.', answer:'O' },
+  { cat:'온라인', diff:'easy', text:'"발로란트"는 라이엇 게임즈의 FPS이다.', answer:'O' },
+  { cat:'온라인', diff:'easy', text:'"포트나이트"는 배틀로얄 게임이다.', answer:'O' },
+  { cat:'온라인', diff:'easy', text:'"에이펙스 레전드"는 3인 팀 배틀로얄이다.', answer:'O' },
+  { cat:'온라인', diff:'easy', text:'"콜 오브 듀티"는 대표적인 밀리터리 FPS 시리즈이다.', answer:'O' },
+  { cat:'온라인', diff:'easy', text:'"파이널 판타지 XIV"는 MMORPG이다.', answer:'O' },
+  { cat:'온라인', diff:'easy', text:'"길드워 2"는 MMORPG이다.', answer:'O' },
+  { cat:'온라인', diff:'easy', text:'"DOTA 2"는 MOBA 장르이다.', answer:'O' },
+  { cat:'온라인', diff:'easy', text:'"레인보우 식스 시즈"는 5:5 전술 FPS이다.', answer:'O' },
+  { cat:'온라인', diff:'mid',  text:'"리그 오브 레전드"는 2005년에 정식 서비스를 시작했다.', answer:'X' },
+  { cat:'온라인', diff:'mid',  text:'"DOTA"는 "워크래프트 3"의 유즈맵에서 파생됐다.', answer:'O' },
+  { cat:'온라인', diff:'mid',  text:'"DOTA 2"는 밸브가 개발했다.', answer:'O' },
+  { cat:'온라인', diff:'mid',  text:'"발로란트"는 2015년에 정식 출시되었다.', answer:'X' },
+  { cat:'온라인', diff:'mid',  text:'"포트나이트"의 개발사는 에픽게임즈이다.', answer:'O' },
+  { cat:'온라인', diff:'mid',  text:'"배틀그라운드"는 배틀로얄 장르를 대중화시켰다.', answer:'O' },
+  { cat:'온라인', diff:'mid',  text:'"콜 오브 듀티: 워존"은 무료 배틀로얄 게임이다.', answer:'O' },
+  { cat:'온라인', diff:'mid',  text:'"에이펙스 레전드"는 블리자드가 개발했다.', answer:'X' },
+  { cat:'온라인', diff:'mid',  text:'"파이널 판타지 XIV"는 스퀘어 에닉스의 MMORPG이다.', answer:'O' },
+  { cat:'온라인', diff:'mid',  text:'"길드워 2"는 블리자드가 개발했다.', answer:'X' },
+  { cat:'온라인', diff:'mid',  text:'"레인보우 식스 시즈"는 EA가 개발했다.', answer:'X' },
+  { cat:'온라인', diff:'mid',  text:'"오버워치 2"의 팀 인원은 6:6이다.', answer:'X' },
+  { cat:'온라인', diff:'mid',  text:'"카운터 스트라이크 2"는 밸브가 CS:GO의 후속작으로 출시했다.', answer:'O' },
+  { cat:'온라인', diff:'mid',  text:'"리그 오브 레전드"의 정식 명칭 약칭은 LoL이다.', answer:'O' },
+  { cat:'온라인', diff:'mid',  text:'"에이지 오브 엠파이어"는 앙상블 스튜디오가 개발한 RTS이다.', answer:'O' },
+  { cat:'온라인', diff:'hard', text:'"에버퀘스트"는 소니 온라인 엔터테인먼트가 서비스한 초기 3D MMORPG이다.', answer:'O' },
+  { cat:'온라인', diff:'hard', text:'"울티마 온라인"은 오리진 시스템즈가 1997년 출시했다.', answer:'O' },
+  { cat:'온라인', diff:'hard', text:'"HoN(Heroes of Newerth)"은 초기 유명 MOBA 게임이다.', answer:'O' },
+  { cat:'온라인', diff:'hard', text:'라이엇 게임즈의 창립자는 팀 스위니와 마크 세르니이다.', answer:'X' },
+  { cat:'온라인', diff:'hard', text:'"League of Legends: Wild Rift"는 모바일 버전 LoL이다.', answer:'O' },
+  { cat:'온라인', diff:'hard', text:'"팀 포트리스"는 원래 퀘이크의 모드에서 시작됐다.', answer:'O' },
+  { cat:'온라인', diff:'hard', text:'"CS:GO"의 정식 명칭은 Counter-Strike: Global Offensive이다.', answer:'O' },
+  { cat:'온라인', diff:'hard', text:'"포트나이트 배틀로얄"은 원래 협동형 좀비 게임의 스핀오프에서 시작됐다.', answer:'O' },
+  { cat:'온라인', diff:'hard', text:'"라이엇 게임즈"는 소니에 인수되었다.', answer:'X' },
+  { cat:'온라인', diff:'hard', text:'"H1Z1"은 배틀로얄 장르의 초기 게임 중 하나이다.', answer:'O' },
+  { cat:'온라인', diff:'hard', text:'"플래닛사이드 2"는 대규모 온라인 FPS 게임이다.', answer:'O' },
+  { cat:'온라인', diff:'hard', text:'"이브 온라인"은 넥슨이 서비스하는 우주 배경 MMORPG이다.', answer:'X' },
+  { cat:'온라인', diff:'hard', text:'"길드워 1"은 지속적 월 구독 방식이 아니었다.', answer:'O' },
+  { cat:'온라인', diff:'hard', text:'"블레이드 앤 소울"은 언리얼 엔진 3로 개발되었다.', answer:'O' },
+  { cat:'온라인', diff:'hard', text:'"FIFA 온라인 4"는 EA와 넥슨이 협력해 서비스하는 축구 게임이다.', answer:'O' },
+
+  // ───────── 인디·최신 게임 (30) ─────────
+  { cat:'인디최신', diff:'easy', text:'"어몽 어스"는 여러 명이 함께 하는 우주선 배경 게임이다.', answer:'O' },
+  { cat:'인디최신', diff:'easy', text:'"팰월드"는 몬스터를 잡아 육성하는 게임이다.', answer:'O' },
+  { cat:'인디최신', diff:'easy', text:'"발더스 게이트 3"는 CRPG 장르이다.', answer:'O' },
+  { cat:'인디최신', diff:'easy', text:'"할로우 나이트"는 메트로배니아 장르 게임이다.', answer:'O' },
+  { cat:'인디최신', diff:'easy', text:'"스타듀밸리"는 농장 시뮬레이션 게임이다.', answer:'O' },
+  { cat:'인디최신', diff:'easy', text:'"셀레스테"는 플랫포머 인디 게임이다.', answer:'O' },
+  { cat:'인디최신', diff:'easy', text:'"언더테일"은 인디 RPG 게임이다.', answer:'O' },
+  { cat:'인디최신', diff:'easy', text:'"헤일로"는 마이크로소프트의 대표 FPS 시리즈이다.', answer:'O' },
+  { cat:'인디최신', diff:'mid',  text:'"발더스 게이트 3"의 개발사는 CD Projekt RED이다.', answer:'X' },
+  { cat:'인디최신', diff:'mid',  text:'"팰월드"는 에픽게임즈가 개발한 게임이다.', answer:'X' },
+  { cat:'인디최신', diff:'mid',  text:'"스타듀밸리"는 한 명의 개발자(Eric Barone)가 대부분 혼자 만들었다.', answer:'O' },
+  { cat:'인디최신', diff:'mid',  text:'"할로우 나이트"의 개발사는 팀 체리(Team Cherry)이다.', answer:'O' },
+  { cat:'인디최신', diff:'mid',  text:'"셀레스테"의 개발자는 매트 소슨(Matt Makes Games)이다.', answer:'O' },
+  { cat:'인디최신', diff:'mid',  text:'"언더테일"은 토비 폭스(Toby Fox)가 만들었다.', answer:'O' },
+  { cat:'인디최신', diff:'mid',  text:'"헤일로: 인피니트"는 343 인더스트리즈가 개발했다.', answer:'O' },
+  { cat:'인디최신', diff:'mid',  text:'"엘든 링"은 2020년 게임 오브 더 이어(GOTY)를 수상했다.', answer:'X' },
+  { cat:'인디최신', diff:'mid',  text:'"발더스 게이트 3"는 2023년 GOTY를 수상했다.', answer:'O' },
+  { cat:'인디최신', diff:'mid',  text:'"헬다이버즈 2"는 소니 산타모니카 스튜디오가 개발했다.', answer:'X' },
+  { cat:'인디최신', diff:'mid',  text:'"블랙 미스: 오공"은 중국의 게임 스튜디오가 개발했다.', answer:'O' },
+  { cat:'인디최신', diff:'mid',  text:'"팩토리오"는 자동화 공장 시뮬레이션 게임이다.', answer:'O' },
+  { cat:'인디최신', diff:'hard', text:'"컵헤드"의 그래픽 스타일은 1930년대 애니메이션에서 영감을 받았다.', answer:'O' },
+  { cat:'인디최신', diff:'hard', text:'"림월드"의 개발자는 타이넌 실베스터(Tynan Sylvester)이다.', answer:'O' },
+  { cat:'인디최신', diff:'hard', text:'"슬레이 더 스파이어"는 로그라이크 덱빌딩 장르를 대표한다.', answer:'O' },
+  { cat:'인디최신', diff:'hard', text:'"하데스"의 개발사는 팀 체리(Team Cherry)이다.', answer:'X' },
+  { cat:'인디최신', diff:'hard', text:'"디스코 엘리시움"의 개발사는 ZA/UM이다.', answer:'O' },
+  { cat:'인디최신', diff:'hard', text:'"팬텀 리버티"는 사이버펑크 2077의 확장팩이다.', answer:'O' },
+  { cat:'인디최신', diff:'hard', text:'"헬다이버즈 2"는 소니 인터랙티브 엔터테인먼트가 퍼블리싱했다.', answer:'O' },
+  { cat:'인디최신', diff:'hard', text:'"팰월드"의 조기 접근 출시 첫 달 판매량은 1500만 장을 넘었다.', answer:'O' },
+  { cat:'인디최신', diff:'hard', text:'"발할라: Assassin\'s Creed"는 유비소프트의 액션 어드벤처 게임이다.', answer:'O' },
+  { cat:'인디최신', diff:'hard', text:'"베이비 이즈 유(Baby is You)"는 텍스트 규칙 조작 퍼즐 게임이다.', answer:'O' },
+
+  // ───────── e스포츠·게임문화 (30) ─────────
+  { cat:'e스포츠', diff:'easy', text:'e스포츠는 전자 스포츠(electronic sports)의 줄임말이다.', answer:'O' },
+  { cat:'e스포츠', diff:'easy', text:'롤드컵(LoL 월드 챔피언십)은 매년 열린다.', answer:'O' },
+  { cat:'e스포츠', diff:'easy', text:'스타크래프트 프로게이머 임요환은 "테란의 황제"로 불렸다.', answer:'O' },
+  { cat:'e스포츠', diff:'easy', text:'페이커(Faker)는 대한민국의 프로게이머이다.', answer:'O' },
+  { cat:'e스포츠', diff:'easy', text:'T1은 대한민국의 e스포츠 팀이다.', answer:'O' },
+  { cat:'e스포츠', diff:'easy', text:'"스타크래프트: 브루드워"는 한국 e스포츠 역사의 기반이 된 게임이다.', answer:'O' },
+  { cat:'e스포츠', diff:'easy', text:'e스포츠 대회는 오프라인뿐 아니라 온라인으로도 열린다.', answer:'O' },
+  { cat:'e스포츠', diff:'easy', text:'게임 스트리밍 플랫폼 "트위치"는 아마존이 인수했다.', answer:'O' },
+  { cat:'e스포츠', diff:'mid',  text:'"LoL 월드 챔피언십"은 2011년에 첫 대회가 열렸다.', answer:'O' },
+  { cat:'e스포츠', diff:'mid',  text:'T1(구 SKT T1)은 LoL 월드 챔피언십에서 여러 차례 우승했다.', answer:'O' },
+  { cat:'e스포츠', diff:'mid',  text:'페이커의 본명은 이현우이다.', answer:'X' },
+  { cat:'e스포츠', diff:'mid',  text:'"오버워치 리그"는 도시 기반 프랜차이즈 방식으로 운영됐다.', answer:'O' },
+  { cat:'e스포츠', diff:'mid',  text:'MSI는 LoL의 "Mid-Season International" 대회이다.', answer:'X' },
+  { cat:'e스포츠', diff:'mid',  text:'"카트라이더 리그"는 한국의 대표적 캐주얼 e스포츠 대회이다.', answer:'O' },
+  { cat:'e스포츠', diff:'mid',  text:'2018년 자카르타-팔렘방 아시안게임에서 e스포츠가 시범 종목으로 채택됐다.', answer:'O' },
+  { cat:'e스포츠', diff:'mid',  text:'2022년 항저우 아시안게임에서 e스포츠는 정식 종목으로 채택되었다.', answer:'O' },
+  { cat:'e스포츠', diff:'mid',  text:'"디 인터내셔널(TI)"은 리그 오브 레전드의 세계 대회이다.', answer:'X' },
+  { cat:'e스포츠', diff:'mid',  text:'"오버워치 월드컵"은 국가 대항전 형식이다.', answer:'O' },
+  { cat:'e스포츠', diff:'mid',  text:'"WCG(World Cyber Games)"는 한국이 주최했던 국제 e스포츠 대회였다.', answer:'O' },
+  { cat:'e스포츠', diff:'mid',  text:'게임 스트리밍 사이트 "트위치"는 2011년 서비스를 시작했다.', answer:'O' },
+  { cat:'e스포츠', diff:'hard', text:'스타크래프트 프로게이머 이영호는 "택뱅리쌍"의 한 명으로 불렸다.', answer:'O' },
+  { cat:'e스포츠', diff:'hard', text:'"택뱅리쌍"은 스타크래프트의 김택용, 송병구, 이영호, 이제동을 지칭한다.', answer:'O' },
+  { cat:'e스포츠', diff:'hard', text:'"디 인터내셔널(TI)"의 상금 총액은 크라우드펀딩으로 조성된다.', answer:'O' },
+  { cat:'e스포츠', diff:'hard', text:'"OGN"은 대한민국의 게임 전문 방송 채널이다.', answer:'O' },
+  { cat:'e스포츠', diff:'hard', text:'"온게임넷 스타리그"는 한국 e스포츠 역사의 상징적 대회이다.', answer:'O' },
+  { cat:'e스포츠', diff:'hard', text:'"페이커"는 2011년 CJ 엔투스에 데뷔했다.', answer:'X' },
+  { cat:'e스포츠', diff:'hard', text:'"조작 스캔들"은 2010년 스타크래프트 e스포츠에 큰 타격을 준 사건이다.', answer:'O' },
+  { cat:'e스포츠', diff:'hard', text:'"오버워치 리그"는 2023년 시즌 종료 후 사실상 해체 수순을 밟았다.', answer:'O' },
+  { cat:'e스포츠', diff:'hard', text:'"레이너 대전(BW to SC2)"은 스타크래프트 1에서 2로의 종목 전환 과정을 뜻한다.', answer:'X' },
+  { cat:'e스포츠', diff:'hard', text:'2023년 LoL 월드 챔피언십은 대한민국에서 개최되었다.', answer:'O' },
+];
+
+// ─── 활성 문제 풀 (select에 따라 교체) ───
+let QUESTIONS = [...QUESTIONS_MIXED];
+// =========================================================
+let state = {
+  round: 0,
+  bestRound: 0,
+  players: [],
+  running: false,
+  paused: false,
+  phase: 'idle',  // idle | question | thinking | reveal | between
+  phaseStart: 0,
+  speed: 1,
+  currentQuestion: null,
+  questionQueue: [],    // 셔플된 문제 순서 큐 (소진 시 자동 재셔플)
+  rafId: null,
+  lastTime: 0,
+  victoryTimeout: null,
+  confettiRaf: null,
+  lastWinnerId: null,
+  autoPlay: false
+};
+
+// Fisher-Yates 셔플
+function shuffleArray(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// 셔플 큐에서 다음 문제 반환 (소진 시 재셔플, 직전 문제 중복 방지)
+function pickNextQuestion() {
+  if (state.questionQueue.length === 0) {
+    let shuffled = shuffleArray(QUESTIONS);
+    // 재셔플 후 직전 문제가 맨 앞에 오는 것 방지
+    if (state.currentQuestion && shuffled.length > 1 &&
+        shuffled[0].text === state.currentQuestion.text) {
+      // 맨 앞과 두 번째 위치 교환
+      [shuffled[0], shuffled[1]] = [shuffled[1], shuffled[0]];
+    }
+    state.questionQueue = shuffled;
+  }
+  return state.questionQueue.shift();
+}
+
+function getNicknameValue() {
+  const input = document.getElementById('nickname-input');
+  const v = (input && input.value.trim()) || 'HUMAN';
+  return v.slice(0, 10);
+}
+
+function genPlayers() {
+  return ROSTER.map((persona, i) => ({
+    id: i,
+    persona,
+    isHuman: persona === 'human',
+    nick: persona === 'human' ? getNicknameValue() : [
+      '아카식',     // scholar 1 - 모든 지식이 기록된 아카식 레코드
+      '갤럭시안',   // scholar 2 - 은하 단위로 아는 자
+      '클론09',     // normal 1
+      '메카닉',     // normal 2
+      '노바린',     // normal 3
+      '제로건',     // normal 4
+      '시그마7',    // normal 5
+      '에코봇',     // watcher 1 - 주변 신호를 따라 반사하는 봇
+      '텔레파시',   // watcher 2 - 남의 생각을 읽으려는 자
+      '싱크로니',   // watcher 3 - 동조하는 자
+      '카오스다이스', // gambler 1
+      '룰렛제로',   // gambler 2
+      '뉴비클론',   // novice 1
+      '베타유닛',   // novice 2
+      '초기화중'    // novice 3
+    ][i-1] || ('NPC'+i),
+    alive: true,
+    isLastWinner: state.lastWinnerId === i,
+    // Position in arena (percent)
+    x: 50,   // 0=left edge, 50=center, 100=right
+    y: 50,   // 0=top, 100=bottom (we'll use bottom-cluster)
+    targetX: 50,
+    targetY: 50,
+    target: null,  // 'O' | 'X' | 'M' | null
+    confidence: 0,
+    believed: null,
+    decisionTime: 0,
+    decided: false,
+    flipped: false,
+    eliminated: false
+  }));
+}
+
+function setupArena() {
+  state.players = genPlayers();
+  renderCharacters();
+  renderLegend();
+}
+
+function renderLegend() {
+  const counts = {};
+  ROSTER.forEach(p => counts[p] = (counts[p] || 0) + 1);
+  const order = ['human','scholar','normal','watcher','gambler','novice'];
+  const html = order.filter(p => counts[p]).map(p => `
+    <div class="legend-row">
+      <div class="legend-swatch" style="background:${PERSONA_COLORS[p]}"></div>
+      <span>${PERSONA_LABELS[p]}</span>
+      <span class="count">${counts[p]}</span>
+    </div>
+  `).join('');
+  document.getElementById('legend').innerHTML = html;
+}
+
+function renderCharacters() {
+  const zones = document.getElementById('zones');
+  // Clear old chars
+  zones.querySelectorAll('.character').forEach(el => el.remove());
+
+  const arenaW = zones.offsetWidth;
+  const arenaH = zones.offsetHeight;
+
+  state.players.forEach(p => {
+    if (p.eliminated) return;
+    const el = document.createElement('div');
+    el.className = 'character' + (p.isLastWinner ? ' last-winner-char' : '');
+    el.dataset.persona = p.persona;
+    el.dataset.id = p.id;
+    el.id = 'char-' + p.id;
+
+    const px = (p.x / 100) * arenaW - 15;
+    const py = (p.y / 100) * arenaH - 38;
+    el.style.left = px + 'px';
+    el.style.top = py + 'px';
+
+    const icon = p.isHuman 
+      ? `<span class="human-icon">👤</span>` 
+      : `<span class="bot-icon">🤖</span>`;
+    const crown = p.isLastWinner ? `<div class="crown-icon">👑</div>` : '';
+    el.innerHTML = `
+      ${crown}
+      <div class="char-body"></div>
+      <div class="char-label">${icon}${p.nick}</div>
+    `;
+    zones.appendChild(el);
+  });
+}
+
+function updateCharPositions() {
+  const zones = document.getElementById('zones');
+  const arenaW = zones.offsetWidth;
+  const arenaH = zones.offsetHeight;
+  state.players.forEach(p => {
+    if (p.eliminated) return;
+    const el = document.getElementById('char-' + p.id);
+    if (!el) return;
+    const px = (p.x / 100) * arenaW - 15;
+    const py = (p.y / 100) * arenaH - 38;
+    el.style.left = px + 'px';
+    el.style.top = py + 'px';
+  });
+}
+
+function updateCounts() {
+  const aliveZones = { O: 0, X: 0, M: 0 };
+  state.players.filter(p => !p.eliminated).forEach(p => {
+    if (p.x < 38) aliveZones.O++;
+    else if (p.x > 62) aliveZones.X++;
+    else aliveZones.M++;
+  });
+  document.getElementById('count-o').textContent = aliveZones.O + '명';
+  document.getElementById('count-x').textContent = aliveZones.X + '명';
+}
+
+// =========================================================
+// SIMULATION LOGIC (per round)
+// =========================================================
+function startRound() {
+  state.round++;
+  const aliveCount = state.players.filter(p => !p.eliminated).length;
+  if (aliveCount <= 1) {
+    endGame();
+    return;
+  }
+
+  // Pick question
+  state.currentQuestion = pickNextQuestion();
+
+  document.getElementById('hud-round').textContent = 'Round ' + state.round;
+  document.getElementById('q-category-badge').textContent = state.currentQuestion.cat;
+  document.getElementById('q-diff').textContent = 
+    '난이도 ' + ({easy:'하', mid:'중', hard:'상'})[state.currentQuestion.diff];
+  document.getElementById('q-text').textContent = state.currentQuestion.text;
+  document.getElementById('q-reveal').classList.remove('show', 'o', 'x');
+  document.getElementById('q-reveal').textContent = '';
+
+  document.getElementById('zone-o').classList.remove('correct', 'wrong', 'shattered');
+  document.getElementById('zone-x').classList.remove('correct', 'wrong', 'shattered');
+
+  // Reset positions: all players start clustered near the bottom center,
+  // spread into 1-2 rows depending on count so labels don't overlap.
+  state.players.filter(p => !p.eliminated).forEach((p) => {
+    const aliveIdx = state.players.filter(pp => !pp.eliminated).indexOf(p);
+    const total = state.players.filter(pp => !pp.eliminated).length;
+    const perRow = 6;
+    const row = Math.floor(aliveIdx / perRow);
+    const col = aliveIdx % perRow;
+    const rowCount = Math.min(perRow, total - row * perRow);
+    p.x = 50 + (col - (rowCount - 1) / 2) * 9;
+    p.y = 80 - row * 9;
+    p.target = null;
+    p.decided = false;
+    p.flipped = false;
+    p.believed = null;
+    p.confidence = 0;
+  });
+  renderCharacters();
+
+  // Decide each player's intent (D1+D2) and decision time (D3)
+  const correctAnswer = state.currentQuestion.answer;
+  const diff = state.currentQuestion.diff;
+  const diffPenalty = { easy: 0, mid: 0.1, hard: 0.2 }[diff];
+
+  state.players.filter(p => !p.eliminated).forEach(p => {
+    const param = PERSONA_PARAMS[p.persona];
+    const acc = Math.max(0.05, Math.min(0.98, param.acc - diffPenalty));
+    p.believed = Math.random() < acc 
+      ? correctAnswer 
+      : (correctAnswer === 'O' ? 'X' : 'O');
+    p.confidence = Math.max(0.05, Math.min(0.99, acc + param.conf + (Math.random() - 0.5) * 0.1));
+    p.decisionTime = Math.max(0.3, Math.min(9.3, param.delay + (Math.random() - 0.5) * 2));
+    // Human player waits for manual input UNLESS auto-play is enabled
+    if (p.isHuman && !state.autoPlay) {
+      p.decisionTime = 999;
+    }
+  });
+
+  // Show input prompt for human only in manual mode (if alive)
+  const human = state.players.find(p => p.isHuman);
+  const prompt = document.getElementById('input-prompt');
+  if (human && !human.eliminated && !state.autoPlay) {
+    prompt.classList.remove('hidden');
+  } else {
+    prompt.classList.add('hidden');
+  }
+  document.getElementById('zone-o').classList.remove('selected-o');
+  document.getElementById('zone-x').classList.remove('selected-x');
+
+  state.phase = 'thinking';
+  state.phaseStart = performance.now();
+  logEvent(`<span class="acc">[R${state.round}]</span> ${state.currentQuestion.text} (정답: <span class="${correctAnswer === 'O' ? 'o' : 'x'}">${correctAnswer}</span>)`);
+}
+
+function tickThinking(elapsedSec) {
+  const T = 10.0;  // 라운드 시간 10초
+  const remaining = Math.max(0, T - elapsedSec);
+  document.getElementById('hud-timer').textContent = remaining.toFixed(1) + 's';
+  document.getElementById('hud-timer').classList.toggle('warning', remaining < 2);
+  document.getElementById('timer-fill').style.width = (remaining / T * 100) + '%';
+
+  // Each player decides at their decisionTime
+  state.players.filter(p => !p.eliminated && !p.decided).forEach(p => {
+    if (elapsedSec >= p.decisionTime) {
+      decidePlayerMove(p);
+      p.decided = true;
+    }
+  });
+
+  // Last-second flip (only after t=6s for relevant personas)
+  if (elapsedSec >= 7.5 && elapsedSec < 8.5) {
+    state.players.filter(p => !p.eliminated && p.decided && !p.flipped).forEach(p => {
+      const param = PERSONA_PARAMS[p.persona];
+      if (param.flip > 0 && Math.random() < param.flip * 0.03) {
+        // small probability per tick
+        if (p.persona === 'gambler') {
+          p.target = p.target === 'O' ? 'X' : 'O';
+          movePlayerToZone(p);
+          p.flipped = true;
+          logEvent(`  ⚡ ${PERSONA_LABELS[p.persona]} #${p.id} 막판 변경 → <span class="${p.target === 'O' ? 'o' : 'x'}">${p.target}</span>`);
+        } else if (p.persona === 'watcher') {
+          // follow current majority
+          const crowd = getCrowdMajority();
+          if (crowd && crowd !== p.target) {
+            p.target = crowd;
+            movePlayerToZone(p);
+            p.flipped = true;
+            logEvent(`  👀 ${PERSONA_LABELS[p.persona]} #${p.id} 군중 따라감 → <span class="${p.target === 'O' ? 'o' : 'x'}">${p.target}</span>`);
+          }
+        }
+      }
+    });
+  }
+
+  resolveCollisions();
+  updateCharPositions();
+  updateCounts();
+
+  // Phase end
+  if (elapsedSec >= T) {
+    // Force undecided into M
+    state.players.filter(p => !p.eliminated && !p.decided).forEach(p => {
+      p.target = 'M';
+      movePlayerToZone(p);
+    });
+    resolveCollisions();
+    revealAnswer();
+  }
+}
+
+function getCrowdMajority() {
+  let o = 0, x = 0;
+  state.players.filter(p => !p.eliminated && p.decided).forEach(p => {
+    if (p.target === 'O') o++;
+    else if (p.target === 'X') x++;
+  });
+  if (o > x) return 'O';
+  if (x > o) return 'X';
+  return null;
+}
+
+function decidePlayerMove(p) {
+  const param = PERSONA_PARAMS[p.persona];
+  let target;
+
+  // D4: choose target
+  if (Math.random() < param.mid) {
+    target = 'M';
+  } else if (p.persona === 'watcher' && p.confidence < 0.6) {
+    const crowd = getCrowdMajority();
+    if (crowd && Math.random() < param.imit) {
+      target = crowd;
+    } else {
+      target = p.believed;
+    }
+  } else if (p.persona === 'normal' && p.confidence < 0.5) {
+    const crowd = getCrowdMajority();
+    if (crowd && Math.random() < param.imit) {
+      target = crowd;
+    } else {
+      target = p.believed;
+    }
+  } else if (p.persona === 'novice' && Math.random() < 0.15) {
+    target = Math.random() < 0.5 ? 'O' : 'X';  // random fluctuation
+  } else {
+    target = p.believed;
+  }
+
+  p.target = target;
+  movePlayerToZone(p);
+  if (!p.isHuman) {
+    logEvent(`  [${p.decisionTime.toFixed(1)}s] ${PERSONA_LABELS[p.persona]} #${p.id} → <span class="${target === 'O' ? 'o' : target === 'X' ? 'x' : ''}">${target}</span> (conf ${p.confidence.toFixed(2)})`);
+  } else if (state.autoPlay) {
+    logEvent(`  <span style="color:var(--p-human)">🤖 ${p.nick} (AUTO)</span> → <span class="${target === 'O' ? 'o' : target === 'X' ? 'x' : ''}">${target}</span> (conf ${p.confidence.toFixed(2)})`);
+  }
+}
+
+// =========================================================
+// COLLISION RESOLUTION
+// Runs after grid placement to guarantee no two alive characters'
+// nickname labels overlap, even after last-second flips disturb the grid.
+// Uses percentage-space coordinates converted to the actual arena pixel
+// size, so it adapts to any screen size.
+// =========================================================
+function resolveCollisions() {
+  const zones = document.getElementById('zones');
+  if (!zones) return;
+  const arenaW = zones.offsetWidth || 356;
+  const arenaH = zones.offsetHeight || 380;
+
+  const MIN_DX = 64;   // px, horizontal minimum (widened for longer Korean nicknames)
+  const MIN_DY = 30;   // px, vertical minimum
+  const ITERATIONS = 40;
+
+  const alivePlayers = state.players.filter(p => !p.eliminated);
+  if (alivePlayers.length < 2) return;
+
+  const pts = alivePlayers.map((p, idx) => ({
+    ref: p,
+    px: (p.x / 100) * arenaW,
+    py: (p.y / 100) * arenaH,
+    idx
+  }));
+
+  for (let iter = 0; iter < ITERATIONS; iter++) {
+    let anyOverlap = false;
+    for (let i = 0; i < pts.length; i++) {
+      for (let j = i + 1; j < pts.length; j++) {
+        const a = pts[i], b = pts[j];
+        let dx = b.px - a.px;
+        let dy = b.py - a.py;
+        const overlapX = MIN_DX - Math.abs(dx);
+        const overlapY = MIN_DY - Math.abs(dy);
+        if (overlapX > 0 && overlapY > 0) {
+          anyOverlap = true;
+          // When points coincide exactly (dx=dy=0), pick a deterministic
+          // angle per pair (based on indices) so the cluster fans out in
+          // a circle instead of collapsing onto a single line.
+          if (dx === 0 && dy === 0) {
+            const angle = ((i + j * 7) % 12) * (Math.PI * 2 / 12);
+            dx = Math.cos(angle) || 0.001;
+            dy = Math.sin(angle) || 0.001;
+          }
+          if (overlapX < overlapY) {
+            const push = (overlapX / 2) * (Math.sign(dx) || 1);
+            a.px -= push;
+            b.px += push;
+          } else {
+            const push = (overlapY / 2) * (Math.sign(dy) || 1);
+            a.py -= push;
+            b.py += push;
+          }
+        }
+      }
+    }
+    if (!anyOverlap) break;
+  }
+
+  const marginX = 14, marginY = 18;
+  pts.forEach(pt => {
+    pt.px = Math.max(marginX, Math.min(arenaW - marginX, pt.px));
+    pt.py = Math.max(marginY, Math.min(arenaH - marginY, pt.py));
+  });
+
+  // Second relaxation pass post-clamp: clamping can push points back
+  // together near the edges, so resolve once more within bounds.
+  for (let iter = 0; iter < ITERATIONS; iter++) {
+    let anyOverlap = false;
+    for (let i = 0; i < pts.length; i++) {
+      for (let j = i + 1; j < pts.length; j++) {
+        const a = pts[i], b = pts[j];
+        let dx = b.px - a.px;
+        let dy = b.py - a.py;
+        const overlapX = MIN_DX - Math.abs(dx);
+        const overlapY = MIN_DY - Math.abs(dy);
+        if (overlapX > 0 && overlapY > 0) {
+          anyOverlap = true;
+          if (dx === 0 && dy === 0) {
+            const angle = ((i + j * 7) % 12) * (Math.PI * 2 / 12);
+            dx = Math.cos(angle) || 0.001;
+            dy = Math.sin(angle) || 0.001;
+          }
+          if (overlapX < overlapY) {
+            const push = (overlapX / 2) * (Math.sign(dx) || 1);
+            a.px = Math.max(marginX, Math.min(arenaW - marginX, a.px - push));
+            b.px = Math.max(marginX, Math.min(arenaW - marginX, b.px + push));
+          } else {
+            const push = (overlapY / 2) * (Math.sign(dy) || 1);
+            a.py = Math.max(marginY, Math.min(arenaH - marginY, a.py - push));
+            b.py = Math.max(marginY, Math.min(arenaH - marginY, b.py + push));
+          }
+        }
+      }
+    }
+    if (!anyOverlap) break;
+  }
+
+  pts.forEach(pt => {
+    pt.ref.x = (pt.px / arenaW) * 100;
+    pt.ref.y = (pt.py / arenaH) * 100;
+  });
+}
+
+function movePlayerToZone(p) {
+  // Each zone has its own cluster area — spread across the FULL zone space
+  // (not clustered at the bottom) so persona labels don't overlap.
+  const aliveSiblings = state.players.filter(pp => !pp.eliminated && pp.target === p.target);
+  const siblingIdx = aliveSiblings.indexOf(p);
+  const sCount = aliveSiblings.length;
+
+  if (p.target === 'O' || p.target === 'X') {
+    // Grid choice: keep columns sparse so persona labels don't collide horizontally.
+    // 3 or fewer → single row; otherwise sqrt(sCount * 0.9) keeps it lean.
+    let cols, rows;
+    if (sCount <= 3) {
+      cols = sCount;
+      rows = 1;
+    } else {
+      cols = Math.ceil(Math.sqrt(sCount * 0.9));
+      rows = Math.ceil(sCount / cols);
+    }
+    const col = siblingIdx % cols;
+    const row = Math.floor(siblingIdx / cols);
+
+    // Usable vertical band: 35% (well below the big O/X watermark) to 75%
+    const yTop = 35, yBottom = 75;
+    const yStep = rows > 1 ? (yBottom - yTop) / (rows - 1) : 0;
+    const baseY = rows > 1 ? yTop + row * yStep : (yTop + yBottom) / 2;
+    // Zigzag offset so adjacent columns in the same row separate vertically
+    // (prevents nickname label overlap when horizontal step ≈ label width)
+    const zigzag = (col % 2) * 4;  // odd columns push down by 4%
+    const y = baseY + zigzag;
+
+    // Usable horizontal band within each half — inner edges pulled away from
+    // the centerline so an O-zone right-most label can't overlap an X-zone
+    // left-most label (each label is ~60px wide ≈ 17% of arena).
+    const xLeftBand  = [8, 40];   // O zone usable x range
+    const xRightBand = [60, 92];  // X zone usable x range
+    const band = p.target === 'O' ? xLeftBand : xRightBand;
+    const xStep = cols > 1 ? (band[1] - band[0]) / (cols - 1) : 0;
+    const x = cols > 1 ? band[0] + col * xStep : (band[0] + band[1]) / 2;
+
+    // Slight jitter so identical grid positions across rounds don't feel robotic
+    const jitter = ((p.id * 37) % 10 - 5) * 0.4;
+    p.x = x + jitter;
+    p.y = y;
+  } else {  // M (middle)
+    const cols = Math.max(1, Math.ceil(Math.sqrt(sCount)));
+    const rows = Math.max(1, Math.ceil(sCount / cols));
+    const col = siblingIdx % cols;
+    const row = Math.floor(siblingIdx / cols);
+    const yTop = 30, yBottom = 70;
+    const yStep = rows > 1 ? (yBottom - yTop) / (rows - 1) : 0;
+    // Wider step so labels don't overlap (was 8 → 18)
+    p.x = 50 + (col - (cols - 1) / 2) * 18;
+    p.y = rows > 1 ? yTop + row * yStep : 50;
+  }
+}
+
+function revealAnswer() {
+  const ans = state.currentQuestion.answer;
+  state.phase = 'reveal';
+  state.phaseStart = performance.now();
+
+  // Show answer badge
+  const reveal = document.getElementById('q-reveal');
+  reveal.textContent = '정답 ' + ans;
+  reveal.classList.add('show', ans.toLowerCase());
+
+  // Color zones
+  if (ans === 'O') {
+    document.getElementById('zone-o').classList.add('correct');
+    document.getElementById('zone-x').classList.add('wrong');
+  } else {
+    document.getElementById('zone-x').classList.add('correct');
+    document.getElementById('zone-o').classList.add('wrong');
+  }
+
+  // Eliminate wrong + middle players (after delay)
+  setTimeout(() => {
+    document.getElementById('zone-' + (ans === 'O' ? 'x' : 'o')).classList.add('shattered');
+    const elims = [];
+    state.players.filter(p => !p.eliminated).forEach(p => {
+      if (p.target !== ans) {
+        p.eliminated = true;
+        elims.push(p);
+        const el = document.getElementById('char-' + p.id);
+        if (el) el.classList.add('eliminated');
+      }
+    });
+    elims.forEach(p => {
+      logEvent(`  <span class="elim">☠ 탈락:</span> ${PERSONA_LABELS[p.persona]} #${p.id} (${p.target})`);
+    });
+
+    const aliveCount = state.players.filter(p => !p.eliminated).length;
+    document.getElementById('hud-alive').textContent = aliveCount + '/' + ROSTER.length;
+
+    // Check human
+    const human = state.players.find(p => p.isHuman);
+    if (human.eliminated) {
+      document.getElementById('me-status').textContent = '탈락';
+      document.getElementById('me-status').style.color = 'var(--x-color)';
+    }
+  }, 600 / state.speed);
+
+  // Move to between phase after reveal
+  setTimeout(() => {
+    if (state.running) {
+      const aliveCount = state.players.filter(p => !p.eliminated).length;
+      if (state.round > state.bestRound) {
+        state.bestRound = state.round;
+        document.getElementById('best-round').textContent = state.bestRound + 'R';
+      }
+      if (aliveCount <= 1) {
+        endGame();
+      } else {
+        startRound();
+      }
+    }
+  }, 2400 / state.speed);
+}
+
+function endGame() {
+  state.running = false;
+  state.phase = 'idle';
+  const winners = state.players.filter(p => !p.eliminated);
+  if (winners.length === 1) {
+    const w = winners[0];
+    const el = document.getElementById('char-' + w.id);
+    if (el) el.classList.add('winner');
+    logEvent(`<span class="acc">🏆 우승:</span> ${PERSONA_LABELS[w.persona]} #${w.id} (${state.round}라운드)`);
+    document.getElementById('q-text').textContent = `🏆 ${w.nick} 우승!`;
+
+    updateLastWinnerBadge(w, state.round);
+    state.lastWinnerId = w.id;
+
+    if (w.isHuman) {
+      triggerVictoryCelebration(w);
+    }
+  } else {
+    logEvent(`<span class="acc">[종료]</span> ${winners.length}명 생존 (${state.round}라운드)`);
+  }
+  setControlsState(false);
+}
+
+function updateLastWinnerBadge(winner, round) {
+  document.getElementById('fw-name').textContent = winner.nick;
+  document.getElementById('fw-persona').textContent =
+    (PERSONA_LABELS[winner.persona] || '') + (round ? ' · ' + round + 'R' : '');
+}
+
+// =========================================================
+// VICTORY CELEBRATION (confetti + message)
+// =========================================================
+function triggerVictoryCelebration(winner) {
+  const overlay = document.getElementById('victory-overlay');
+  const sub = document.querySelector('.victory-sub');
+  sub.textContent = `${winner.nick}, ${state.round}라운드 만에 우승했습니다!`;
+  overlay.classList.remove('hidden');
+
+  runConfetti();
+
+  // Auto-hide after a while so it doesn't block the next game start
+  clearTimeout(state.victoryTimeout);
+  state.victoryTimeout = setTimeout(() => {
+    overlay.classList.add('hidden');
+  }, 4500);
+}
+
+function runConfetti() {
+  const canvas = document.getElementById('confetti-canvas');
+  const ctx = canvas.getContext('2d');
+  const phoneRect = document.querySelector('.phone').getBoundingClientRect();
+  canvas.width = phoneRect.width;
+  canvas.height = phoneRect.height;
+
+  const colors = ['#ffd166', '#ffb454', '#4ec9b0', '#f47174', '#bb9af7', '#7aa2f7', '#9ece6a'];
+  const pieces = [];
+  const count = 90;
+  for (let i = 0; i < count; i++) {
+    pieces.push({
+      x: Math.random() * canvas.width,
+      y: -20 - Math.random() * canvas.height * 0.5,
+      w: 5 + Math.random() * 5,
+      h: 8 + Math.random() * 6,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      vy: 2 + Math.random() * 3,
+      vx: (Math.random() - 0.5) * 2,
+      rot: Math.random() * 360,
+      vr: (Math.random() - 0.5) * 12,
+      shape: Math.random() < 0.5 ? 'rect' : 'circle'
+    });
+  }
+
+  if (state.confettiRaf) cancelAnimationFrame(state.confettiRaf);
+  const startTime = performance.now();
+  const duration = 4000;
+
+  function frame(t) {
+    const elapsed = t - startTime;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    pieces.forEach(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.rot += p.vr;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot * Math.PI / 180);
+      ctx.fillStyle = p.color;
+      if (p.shape === 'rect') {
+        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      } else {
+        ctx.beginPath();
+        ctx.arc(0, 0, p.w / 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    });
+    if (elapsed < duration) {
+      state.confettiRaf = requestAnimationFrame(frame);
+    } else {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+  }
+  state.confettiRaf = requestAnimationFrame(frame);
+}
+
+function setControlsState(isRunning) {
+  document.getElementById('btn-start').disabled = isRunning;
+  document.getElementById('btn-pause').disabled = !isRunning;
+  document.getElementById('game-btn-start').disabled = isRunning;
+  document.getElementById('game-btn-pause').disabled = !isRunning;
+  document.getElementById('auto-toggle').disabled = isRunning;
+  document.getElementById('qbank-select').disabled = isRunning;
+}
+
+function logEvent(html) {
+  const log = document.getElementById('event-log');
+  const line = document.createElement('div');
+  line.className = 'line';
+  line.innerHTML = html;
+  log.insertBefore(line, log.firstChild);
+  // Keep last 40 lines
+  while (log.children.length > 40) log.removeChild(log.lastChild);
+}
+
+// =========================================================
+// MAIN LOOP
+// =========================================================
+function loop(t) {
+  if (!state.lastTime) state.lastTime = t;
+  state.lastTime = t;
+
+  if (state.running && !state.paused) {
+    const elapsed = (t - state.phaseStart) / 1000 * state.speed;
+    if (state.phase === 'thinking') {
+      tickThinking(elapsed);
+    }
+  }
+  state.rafId = requestAnimationFrame(loop);
+}
+
+// =========================================================
+// CONTROLS
+// =========================================================
+function doStart() {
+  state.round = 0;
+  state.players.forEach(p => p.eliminated = false);
+  state.questionQueue = [];   // 새 게임 시작 시 큐 초기화 → pickNextQuestion이 재셔플
+  state.currentQuestion = null;
+  setupArena();
+  document.getElementById('me-label').textContent = getNicknameValue() + (state.autoPlay ? ' 🤖' : '');
+  document.getElementById('me-status').textContent = '생존';
+  document.getElementById('me-status').style.color = 'var(--text)';
+  document.getElementById('event-log').innerHTML = '';
+  document.getElementById('nickname-input').disabled = true;
+  hideVictoryOverlay();
+  state.running = true;
+  state.paused = false;
+  setControlsState(true);
+  setPauseLabel(false);
+  startRound();
+}
+
+function hideVictoryOverlay() {
+  document.getElementById('victory-overlay').classList.add('hidden');
+  clearTimeout(state.victoryTimeout);
+  if (state.confettiRaf) cancelAnimationFrame(state.confettiRaf);
+}
+
+function doTogglePause() {
+  if (!state.running) return;
+  state.paused = !state.paused;
+  setPauseLabel(state.paused);
+}
+
+function doReset() {
+  state.running = false;
+  state.round = 0;
+  state.lastWinnerId = null;
+  setupArena();
+  document.getElementById('hud-round').textContent = 'Round 1';
+  document.getElementById('hud-timer').textContent = '10.0s';
+  document.getElementById('hud-alive').textContent = '15/15';
+  document.getElementById('q-text').textContent = '대기 중...';
+  document.getElementById('q-reveal').classList.remove('show', 'o', 'x');
+  document.getElementById('zone-o').classList.remove('correct', 'wrong', 'shattered');
+  document.getElementById('zone-x').classList.remove('correct', 'wrong', 'shattered');
+  document.getElementById('input-prompt').classList.add('hidden');
+  document.getElementById('me-label').textContent = '당신';
+  document.getElementById('me-status').textContent = '생존';
+  document.getElementById('me-status').style.color = 'var(--text)';
+  document.getElementById('event-log').innerHTML = '<div class="line">리셋 완료</div>';
+  document.getElementById('nickname-input').disabled = false;
+  document.getElementById('fw-name').textContent = '—';
+  document.getElementById('fw-persona').textContent = '';
+  document.getElementById('best-round').textContent = '—';
+  hideVictoryOverlay();
+  setControlsState(false);
+  setPauseLabel(false);
+}
+
+function setPauseLabel(isPaused) {
+  const label = isPaused ? '▶ 재개' : '⏸ 일시정지';
+  document.getElementById('btn-pause').textContent = label;
+  document.getElementById('game-btn-pause').textContent = label;
+}
+
+document.getElementById('btn-start').addEventListener('click', doStart);
+document.getElementById('game-btn-start').addEventListener('click', doStart);
+
+document.getElementById('btn-pause').addEventListener('click', doTogglePause);
+document.getElementById('game-btn-pause').addEventListener('click', doTogglePause);
+
+document.getElementById('btn-reset').addEventListener('click', doReset);
+document.getElementById('victory-overlay').addEventListener('click', hideVictoryOverlay);
+
+document.getElementById('auto-toggle').addEventListener('click', () => {
+  if (state.running) return; // safety: shouldn't be reachable while disabled
+  state.autoPlay = !state.autoPlay;
+  document.getElementById('auto-toggle').classList.toggle('active', state.autoPlay);
+});
+document.getElementById('game-btn-reset').addEventListener('click', doReset);
+
+document.getElementById('speed-select').addEventListener('change', function() {
+  state.speed = parseFloat(this.value);
+});
+
+document.getElementById('qbank-select').addEventListener('change', function() {
+  const bank = {
+    mixed:    QUESTIONS_MIXED,
+    ai:       QUESTIONS_AI,
+    ai_easy:  QUESTIONS_AI_EASY,
+    game:     QUESTIONS_GAME
+  }[this.value] || QUESTIONS_MIXED;
+  QUESTIONS = [...bank];
+  state.questionQueue = [];   // 풀 교체 시 큐 초기화
+});
+
+// =========================================================
+// HUMAN INPUT
+// =========================================================
+function humanSelect(choice) {
+  // choice: 'O' or 'X'
+  if (state.phase !== 'thinking') return;
+  if (state.autoPlay) return; // ignore manual taps while auto-play is on
+  const human = state.players.find(p => p.isHuman);
+  if (!human || human.eliminated) return;
+
+  human.target = choice;
+  human.decided = true;
+  human.decisionTime = (performance.now() - state.phaseStart) / 1000 * state.speed;
+  movePlayerToZone(human);
+  resolveCollisions();
+  updateCharPositions();
+
+  // UI feedback
+  document.getElementById('input-prompt').classList.add('hidden');
+  document.getElementById('zone-o').classList.toggle('selected-o', choice === 'O');
+  document.getElementById('zone-x').classList.toggle('selected-x', choice === 'X');
+
+  logEvent(`  <span style="color:var(--p-human)">👤 ${human.nick}</span> → <span class="${choice === 'O' ? 'o' : 'x'}">${choice}</span> 선택`);
+}
+
+// Tap on zones
+document.getElementById('zone-o').addEventListener('click', () => humanSelect('O'));
+document.getElementById('zone-x').addEventListener('click', () => humanSelect('X'));
+
+// Keyboard
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowLeft' || e.key === 'o' || e.key === 'O') {
+    humanSelect('O');
+  } else if (e.key === 'ArrowRight' || e.key === 'x' || e.key === 'X') {
+    humanSelect('X');
+  } else if (e.key === ' ') {
+    e.preventDefault();
+    // Space = toggle pause
+    document.getElementById('btn-pause').click(); // kept for compat; same as doTogglePause via click
+  }
+});
+
+// Init
+window.addEventListener('load', () => {
+  setupArena();
+  setControlsState(false);
+  state.rafId = requestAnimationFrame(loop);
+});
+window.addEventListener('resize', () => {
+  updateCharPositions();
+});
+</script>
+</body>
+</html>
